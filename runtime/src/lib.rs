@@ -265,6 +265,7 @@ impl pallet_sudo::Config for Runtime {
 /// Configure the pallet-qv in pallets/qv.
 impl pallet_qv::Config for Runtime {
 	type Event = Event;
+	type Currency = Balances;
 }
 
 // Create the runtime by composing the FRAME pallets that were previously configured.

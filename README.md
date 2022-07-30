@@ -10,6 +10,9 @@ A learning project to get me into Substrate development. A simple quadratic voti
  - [ ] Simple case voting alternatives: Aye or Nay
  - [ ] Bonus: Proposing and voting on multiple things at once
 
+## Done
+ - [x] Make reservable currency available to the qv pallet
+
 ## Reading List
 
  - [Wikipedia: Quadratic Voting](https://en.wikipedia.org/wiki/Quadratic_voting)
