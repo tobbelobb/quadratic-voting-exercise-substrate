@@ -3,7 +3,7 @@ A learning project to get me into Substrate development. A simple quadratic voti
 
 ## User Stories & Development Status
 
- - [ ] Simple Identity pallet
+ - [ ] Use FRAME Identity pallet
  - [ ] Users (IDs) can vote by reserving tokens
  - [ ] Votes = sqrt(reserved tokens)
  - [ ] Proposals: on-chain hashes
@@ -12,6 +12,9 @@ A learning project to get me into Substrate development. A simple quadratic voti
 
 ## Done
  - [x] Make reservable currency available to the qv pallet
+ - [x] Make identity pallet available to the qv pallet
+ - [x] Reserve tokens function exists
+   - [ ] Test it
 
 ## Reading List
 
@@ -26,3 +29,4 @@ A learning project to get me into Substrate development. A simple quadratic voti
    [discussion](https://github.com/substrate-developer-hub/hacktoberfest/issues/22)
  - [Pallet-Quadratic-Funding](https://github.com/jakehemmerle/uc-zk-voting)
  - [How to Build Custom Pallets with Substrate](https://learn.figment.io/tutorials/how-to-build-custom-pallets-with-substrate)
+ - [Alternative Identity Pallet](https://github.com/sunshine-protocol/sunshine-keybase)

@@ -16,20 +16,27 @@ mod benchmarking;
 
 #[frame_support::pallet]
 pub mod pallet {
-	use frame_support::{pallet_prelude::*, traits::ReservableCurrency};
+	use frame_support::{
+		pallet_prelude::*,
+		traits::{Currency, ReservableCurrency},
+	};
 	use frame_system::pallet_prelude::*;
 
+	use pallet_identity::IdentityField;
+	const IDENTITY_FIELD_DISPLAY: u64 = IdentityField::Display as u64;
+
 	/// Configure the pallet by specifying the parameters and types on which it depends.
+	/// Uses tight coupling of pallet_identity
 	#[pallet::config]
 	pub trait Config: frame_system::Config + pallet_identity::Config {
 		/// Because this pallet emits events, it depends on the runtime's definition of an event.
 		type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
 		type Currency: ReservableCurrency<Self::AccountId>;
-		// tight coupling
-		// has_identity
-		// can access the storage map
-		// no traits implement what I need yet. Need to fiddle with storage mysel
 	}
+
+	// pallet_identity gives function has_identity()
+	// and access to the pallet_identity storage map
+	// we need to figure out how we want to use the storage map ourselves
 
 	#[pallet::pallet]
 	#[pallet::generate_store(pub(super) trait Store)]
@@ -60,6 +67,8 @@ pub mod pallet {
 		NoneValue,
 		/// Errors should have helpful documentation associated with them.
 		StorageOverflow,
+		/// User has not set an identity
+		NoIdentity,
 	}
 
 	// Dispatchable functions allows users to interact with the pallet and invoke state changes.
@@ -101,6 +110,21 @@ pub mod pallet {
 					<Something<T>>::put(new);
 					Ok(())
 				},
+			}
+		}
+
+		/// A dispatchable that reserves an amount of token for a user.
+		#[pallet::weight(10_000 + T::DbWeight::get().writes(1))]
+		pub fn reserve_an_amount_of_token(
+			origin: OriginFor<T>,
+			amount: <<T as Config>::Currency as Currency<T::AccountId>>::Balance,
+		) -> DispatchResult {
+			let who = ensure_signed(origin)?;
+			if pallet_identity::Pallet::<T>::has_identity(&who, IDENTITY_FIELD_DISPLAY) {
+				// If funds are too low and Err will be returned
+				<T as Config>::Currency::reserve(&who, amount)
+			} else {
+				Err(Error::<T>::NoIdentity.into())
 			}
 		}
 	}
