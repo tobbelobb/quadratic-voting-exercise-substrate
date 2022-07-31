@@ -5,6 +5,17 @@ use pallet_balances::Error as BalancesError;
 use pallet_identity::{Data, IdentityInfo};
 use sp_runtime::DispatchError;
 
+use crate::Event as QvEvent;
+
+fn last_event() -> QvEvent<Test> {
+	System::events()
+		.into_iter()
+		.map(|r| r.event)
+		.filter_map(|e| if let Event::Qv(inner) = e { Some(inner) } else { None })
+		.last()
+		.unwrap()
+}
+
 #[test]
 fn it_works_for_default_value() {
 	new_test_ext().execute_with(|| {
@@ -89,10 +100,57 @@ fn try_successful_zero_reserve() {
 #[test]
 fn try_successful_nonzero_reserve() {
 	new_test_ext().execute_with(|| {
+		System::set_block_number(1);
 		let who = Origin::signed(10);
 
 		assert_ok!(Identity::set_identity(who.clone(), Box::new(info())));
 
 		assert_ok!(Qv::reserve_an_amount_of_token(who.clone(), SMALL_AMOUNT));
+
+		// Checks that the correct event was emitted
+		assert_eq!(last_event(), QvEvent::AmountReserved(10, SMALL_AMOUNT));
+	});
+}
+
+#[test]
+fn successive_reserves_until_out_of_funds() {
+	new_test_ext().execute_with(|| {
+		let who = Origin::signed(10);
+
+		assert_ok!(Identity::set_identity(who.clone(), Box::new(info())));
+
+		assert_ok!(Qv::reserve_an_amount_of_token(who.clone(), 80));
+		assert_ok!(Qv::reserve_an_amount_of_token(who.clone(), 10));
+		assert_noop!(
+			Qv::reserve_an_amount_of_token(who.clone(), 10),
+			BalancesError::<Test>::InsufficientBalance
+		);
+	});
+}
+
+#[test]
+fn unreserve_then_reserve_again() {
+	new_test_ext().execute_with(|| {
+		System::set_block_number(1);
+		let who = Origin::signed(10);
+
+		assert_ok!(Identity::set_identity(who.clone(), Box::new(info())));
+
+		assert_ok!(Qv::reserve_an_amount_of_token(who.clone(), 90));
+		assert_noop!(
+			Qv::reserve_an_amount_of_token(who.clone(), 10),
+			BalancesError::<Test>::InsufficientBalance
+		);
+		const UNRESERVE_AMOUNT: u64 = 11;
+		assert_ok!(Qv::unreserve_an_amount_of_token(who.clone(), UNRESERVE_AMOUNT));
+
+		// Checks that the correct event was emitted
+		assert_eq!(last_event(), QvEvent::AmountUnreserved(10, UNRESERVE_AMOUNT));
+
+		assert_ok!(Qv::reserve_an_amount_of_token(who.clone(), 10));
+		assert_noop!(
+			Qv::reserve_an_amount_of_token(who.clone(), 10),
+			BalancesError::<Test>::InsufficientBalance
+		);
 	});
 }

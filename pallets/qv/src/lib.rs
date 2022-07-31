@@ -58,6 +58,12 @@ pub mod pallet {
 		/// Event documentation should end with an array that provides descriptive names for event
 		/// parameters. [something, who]
 		SomethingStored(u32, T::AccountId),
+		/// An amount from the specified accound was reserved
+		AmountReserved(T::AccountId, <<T as Config>::Currency as Currency<T::AccountId>>::Balance),
+		AmountUnreserved(
+			T::AccountId,
+			<<T as Config>::Currency as Currency<T::AccountId>>::Balance,
+		),
 	}
 
 	// Errors inform users that something went wrong.
@@ -122,7 +128,29 @@ pub mod pallet {
 			let who = ensure_signed(origin)?;
 			if pallet_identity::Pallet::<T>::has_identity(&who, IDENTITY_FIELD_DISPLAY) {
 				// If funds are too low and Err will be returned
-				<T as Config>::Currency::reserve(&who, amount)
+				let res = <T as Config>::Currency::reserve(&who, amount);
+				if res == Ok(()) {
+					Self::deposit_event(Event::AmountReserved(who, amount));
+				}
+				res
+			} else {
+				Err(Error::<T>::NoIdentity.into())
+			}
+		}
+
+		/// A dispatchable that reserves an amount of token for a user.
+		#[pallet::weight(10_000 + T::DbWeight::get().writes(1))]
+		pub fn unreserve_an_amount_of_token(
+			origin: OriginFor<T>,
+			amount: <<T as Config>::Currency as Currency<T::AccountId>>::Balance,
+		) -> DispatchResult {
+			let who = ensure_signed(origin)?;
+			if pallet_identity::Pallet::<T>::has_identity(&who, IDENTITY_FIELD_DISPLAY) {
+				// Will return a number:
+				// return max(0, amount - balance)
+				<T as Config>::Currency::unreserve(&who, amount);
+				Self::deposit_event(Event::AmountUnreserved(who, amount));
+				Ok(())
 			} else {
 				Err(Error::<T>::NoIdentity.into())
 			}
