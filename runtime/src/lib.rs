@@ -292,6 +292,91 @@ impl pallet_identity::Config for Runtime {
 	type WeightInfo = (); // WeightInfo;
 }
 
+pub struct TestTracksInfo;
+impl TracksInfo<u64, u64> for TestTracksInfo {
+	type Id = u8;
+	type Origin = <Origin as OriginTrait>::PalletsOrigin;
+	fn tracks() -> &'static [(Self::Id, TrackInfo<u64, u64>)] {
+		static DATA: [(u8, TrackInfo<u64, u64>); 2] = [
+			(
+				0u8,
+				TrackInfo {
+					name: "root",
+					max_deciding: 1,
+					decision_deposit: 10,
+					prepare_period: 4,
+					decision_period: 4,
+					confirm_period: 2,
+					min_enactment_period: 4,
+					min_approval: Curve::LinearDecreasing {
+						length: Perbill::from_percent(100),
+						floor: Perbill::from_percent(50),
+						ceil: Perbill::from_percent(100),
+					},
+					min_support: Curve::LinearDecreasing {
+						length: Perbill::from_percent(100),
+						floor: Perbill::from_percent(0),
+						ceil: Perbill::from_percent(100),
+					},
+				},
+			),
+			(
+				1u8,
+				TrackInfo {
+					name: "none",
+					max_deciding: 3,
+					decision_deposit: 1,
+					prepare_period: 2,
+					decision_period: 2,
+					confirm_period: 1,
+					min_enactment_period: 2,
+					min_approval: Curve::LinearDecreasing {
+						length: Perbill::from_percent(100),
+						floor: Perbill::from_percent(95),
+						ceil: Perbill::from_percent(100),
+					},
+					min_support: Curve::LinearDecreasing {
+						length: Perbill::from_percent(100),
+						floor: Perbill::from_percent(90),
+						ceil: Perbill::from_percent(100),
+					},
+				},
+			),
+		];
+		&DATA[..]
+	}
+	fn track_for(id: &Self::Origin) -> Result<Self::Id, ()> {
+		if let Ok(system_origin) = frame_system::RawOrigin::try_from(id.clone()) {
+			match system_origin {
+				frame_system::RawOrigin::Root => Ok(0),
+				frame_system::RawOrigin::None => Ok(1),
+				_ => Err(()),
+			}
+		} else {
+			Err(())
+		}
+	}
+}
+
+impl pallet_referenda::Config for Runtime {
+	type WeightInfo = ();
+	type Call = Call;
+	type Event = Event;
+	type Scheduler = Scheduler;
+	type Currency = pallet_balances::Pallet<Self>;
+	type SubmitOrigin = frame_system::EnsureRoot<AccountId>;
+	type CancelOrigin = EnsureRoot<AccountId>;
+	type KillOrigin = EnsureRoot<AccountId>;
+	type Slash = ();
+	type Votes = u32;
+	type Tally = Tally;
+	type SubmissionDeposit = ConstU64<2>;
+	type MaxQueued = ConstU32<3>;
+	type UndecidingTimeout = ConstU64<20>;
+	type AlarmInterval = AlarmInterval;
+	type Tracks = TestTracksInfo;
+}
+
 /// Configure the pallet-qv in pallets/qv.
 impl pallet_qv::Config for Runtime {
 	type Event = Event;

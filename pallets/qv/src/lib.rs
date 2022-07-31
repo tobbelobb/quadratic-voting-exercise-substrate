@@ -22,21 +22,20 @@ pub mod pallet {
 	};
 	use frame_system::pallet_prelude::*;
 
+	// From pallet_identity we use functions has_identity() and set_identity()
 	use pallet_identity::IdentityField;
 	const IDENTITY_FIELD_DISPLAY: u64 = IdentityField::Display as u64;
 
 	/// Configure the pallet by specifying the parameters and types on which it depends.
-	/// Uses tight coupling of pallet_identity
+	/// Uses tight coupling of pallet_identity and pallet_referenda
 	#[pallet::config]
-	pub trait Config: frame_system::Config + pallet_identity::Config {
+	pub trait Config:
+		frame_system::Config + pallet_identity::Config + pallet_referenda::Config
+	{
 		/// Because this pallet emits events, it depends on the runtime's definition of an event.
 		type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
 		type Currency: ReservableCurrency<Self::AccountId>;
 	}
-
-	// pallet_identity gives function has_identity()
-	// and access to the pallet_identity storage map
-	// we need to figure out how we want to use the storage map ourselves
 
 	#[pallet::pallet]
 	#[pallet::generate_store(pub(super) trait Store)]
