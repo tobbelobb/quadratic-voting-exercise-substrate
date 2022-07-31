@@ -23,6 +23,8 @@ use sp_std::prelude::*;
 use sp_version::NativeVersion;
 use sp_version::RuntimeVersion;
 
+use frame_system::EnsureRoot;
+
 // A few exports that help ease life for downstream crates.
 pub use frame_support::{
 	construct_runtime, parameter_types,
@@ -262,6 +264,34 @@ impl pallet_sudo::Config for Runtime {
 	type Call = Call;
 }
 
+impl pallet_identity::Config for Runtime {
+	type Event = Event;
+	type Currency = Balances;
+
+	// Let's try to nil all deposits
+	type BasicDeposit = (); //Get<BalanceOf<Self>>;
+	type FieldDeposit = ();
+	type SubAccountDeposit = ();
+
+	type MaxSubAccounts = ConstU32<0>;
+	type MaxAdditionalFields = ConstU32<0>;
+
+	// This system won't be designed for very high payloads
+	type MaxRegistrars = ConstU32<10_000>;
+
+	// No slashing
+	type Slashed = (); // OnUnbalanced<NegativeImbalanceOf<Self>>;
+
+	// The origin which may forcibly set or remove a name. Root can always do this.
+	type ForceOrigin = EnsureRoot<AccountId>;
+
+	// The origin which may add or remove registrars. Root can always do this.
+	type RegistrarOrigin = EnsureRoot<AccountId>; // EnsureOrigin<Self::Origin>;
+
+	// Weight information for extrinsics in this pallet.
+	type WeightInfo = (); // WeightInfo;
+}
+
 /// Configure the pallet-qv in pallets/qv.
 impl pallet_qv::Config for Runtime {
 	type Event = Event;
@@ -275,6 +305,7 @@ construct_runtime!(
 		NodeBlock = opaque::Block,
 		UncheckedExtrinsic = UncheckedExtrinsic
 	{
+		// Origin comes from here
 		System: frame_system,
 		RandomnessCollectiveFlip: pallet_randomness_collective_flip,
 		Timestamp: pallet_timestamp,
@@ -283,8 +314,9 @@ construct_runtime!(
 		Balances: pallet_balances,
 		TransactionPayment: pallet_transaction_payment,
 		Sudo: pallet_sudo,
+		IdentityVer: pallet_identity,
 		// Include the custom logic from the pallet-qv in the runtime.
-		TemplateModule: pallet_qv,
+		QuadraticVoting: pallet_qv,
 	}
 );
 
@@ -329,7 +361,7 @@ mod benches {
 		[frame_system, SystemBench::<Runtime>]
 		[pallet_balances, Balances]
 		[pallet_timestamp, Timestamp]
-		[pallet_qv, TemplateModule]
+		[pallet_qv, QuadraticVoting]
 	);
 }
 

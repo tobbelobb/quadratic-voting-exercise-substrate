@@ -21,10 +21,14 @@ pub mod pallet {
 
 	/// Configure the pallet by specifying the parameters and types on which it depends.
 	#[pallet::config]
-	pub trait Config: frame_system::Config {
+	pub trait Config: frame_system::Config + pallet_identity::Config {
 		/// Because this pallet emits events, it depends on the runtime's definition of an event.
 		type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
 		type Currency: ReservableCurrency<Self::AccountId>;
+		// tight coupling
+		// has_identity
+		// can access the storage map
+		// no traits implement what I need yet. Need to fiddle with storage mysel
 	}
 
 	#[pallet::pallet]
