@@ -14,7 +14,8 @@ A learning project to get me into Substrate development. A simple quadratic voti
  - [x] Make reservable currency available to the qv pallet
  - [x] Make identity pallet available to the qv pallet
  - [x] Reserve tokens function exists
-   - [ ] Test it
+   - [x] Test it
+ - [ ] Weigh reserved tokens on quadratic scale
 
 ## Reading List
 
