@@ -113,7 +113,7 @@ frame_support::construct_runtime!(
 pub fn new_test_ext() -> sp_io::TestExternalities {
 	let mut t = system::GenesisConfig::default().build_storage::<Test>().unwrap();
 	// Give different origins some start-mints
-	// the set_identity function costs 10 tokens
+	// the set_identity function costs 10 tokens...
 	pallet_balances::GenesisConfig::<Test> {
 		balances: vec![(1, 10), (2, 10), (3, 10), (10, 100), (20, 100), (30, 100)],
 	}

@@ -64,6 +64,10 @@ pub mod pallet {
 			T::AccountId,
 			<<T as Config>::Currency as Currency<T::AccountId>>::Balance,
 		),
+		VotesCast {
+			id: T::AccountId,
+			number_of_votes: <<T as Config>::Currency as Currency<T::AccountId>>::Balance,
+		},
 	}
 
 	// Errors inform users that something went wrong.
@@ -119,7 +123,7 @@ pub mod pallet {
 			}
 		}
 
-		/// A dispatchable that reserves an amount of token for a user.
+		/// Reserves an amount of token for a user.
 		#[pallet::weight(10_000 + T::DbWeight::get().writes(1))]
 		pub fn reserve_an_amount_of_token(
 			origin: OriginFor<T>,
@@ -138,7 +142,7 @@ pub mod pallet {
 			}
 		}
 
-		/// A dispatchable that reserves an amount of token for a user.
+		/// Unreserves an amount of token for a user.
 		#[pallet::weight(10_000 + T::DbWeight::get().writes(1))]
 		pub fn unreserve_an_amount_of_token(
 			origin: OriginFor<T>,
@@ -148,11 +152,34 @@ pub mod pallet {
 			if pallet_identity::Pallet::<T>::has_identity(&who, IDENTITY_FIELD_DISPLAY) {
 				// Will return a number:
 				// return max(0, amount - balance)
+				// but will never fail
 				<T as Config>::Currency::unreserve(&who, amount);
 				Self::deposit_event(Event::AmountUnreserved(who, amount));
 				Ok(())
 			} else {
 				Err(Error::<T>::NoIdentity.into())
+			}
+		}
+
+		/// Casts vote on behalf of identified user
+		#[pallet::weight(10_000 + T::DbWeight::get().writes(1))]
+		pub fn cast_votes(
+			origin: OriginFor<T>,
+			number_of_votes: <<T as Config>::Currency as Currency<T::AccountId>>::Balance,
+		) -> DispatchResult {
+			let tokens_bound =
+				Self::reserve_an_amount_of_token(origin.clone(), number_of_votes * number_of_votes);
+			if tokens_bound == Ok(()) {
+				// Tokens are bound now so we can update the referendum
+				// ... however a referendum will end up being represented
+
+				Self::deposit_event(Event::VotesCast {
+					id: ensure_signed(origin)?, // There must be a better way to get AccountId out
+					number_of_votes,
+				});
+				Ok(())
+			} else {
+				tokens_bound
 			}
 		}
 	}

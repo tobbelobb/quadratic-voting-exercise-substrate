@@ -154,3 +154,38 @@ fn unreserve_then_reserve_again() {
 		);
 	});
 }
+
+#[test]
+fn cast_single_vote() {
+	new_test_ext().execute_with(|| {
+		System::set_block_number(1);
+		let who = Origin::signed(10);
+
+		assert_ok!(Identity::set_identity(who.clone(), Box::new(info())));
+
+		assert_ok!(Qv::cast_votes(who.clone(), 1));
+
+		assert_eq!(last_event(), QvEvent::VotesCast { id: 10, number_of_votes: 1 });
+	});
+}
+
+#[test]
+fn cast_more_votes_than_allowed() {
+	new_test_ext().execute_with(|| {
+		let who = Origin::signed(10);
+
+		assert_ok!(Identity::set_identity(who.clone(), Box::new(info())));
+
+		// Free balance is not reduced by trying to cast too many votes
+		assert_eq!(Balances::free_balance(10), 90);
+		assert_noop!(Qv::cast_votes(who, 11), BalancesError::<Test>::InsufficientBalance);
+		assert_eq!(Balances::free_balance(10), 90);
+	});
+}
+
+#[test]
+fn try_cast_vote_no_identity() {
+	new_test_ext().execute_with(|| {
+		assert_noop!(Qv::cast_votes(Origin::signed(1), 1), Error::<Test>::NoIdentity);
+	});
+}

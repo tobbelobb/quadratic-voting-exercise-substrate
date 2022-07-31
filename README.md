@@ -26,6 +26,7 @@ A learning project to get me into Substrate development. A simple quadratic voti
  - [Polkadot Wiki: Identity](https://wiki.polkadot.network/docs/learn-identity)
  - [FRAME Pallet Identity](https://paritytech.github.io/substrate/master/pallet_identity/index.html)
  - [FRAME Pallet Democracy](https://paritytech.github.io/substrate/master/pallet_democracy/index.html), [on
+ - [FRAME Pallet Referenda](https://paritytech.github.io/substrate/master/pallet_referenda/index.html)
    Github](https://github.com/paritytech/substrate/tree/master/frame/democracy)
  - [Substrate Quadratic Democracy (2020)](https://github.com/MVPWorkshop/substrate-quadratic-democracy),
    [discussion](https://github.com/substrate-developer-hub/hacktoberfest/issues/22)
