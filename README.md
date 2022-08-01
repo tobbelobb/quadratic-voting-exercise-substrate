@@ -19,37 +19,41 @@ A learning project to get me into Substrate development. A simple quadratic voti
  - [ ] Represent referendums
 
 ## Backlog
- - [ ] In release builds, the events should not expose voters too much. Bribery and buying others' votes should be made harder by making it impossible to prove to someone
-   else that one voted in a particular way.
+ - [ ] In release builds, the events should not expose voters' AccountIds. Make it hard to prove to someone voted in a particular way.
 
 ## Parachain Idea: Votion
 On Votion we only have identified users.
 It builds upon the pallet-qv from this repo.
-The pallet-qv uses pallet-identity for now, but the real Votion parachain should plug in a better identity solution like Kilt, Litentry, or even Encointer.
+The pallet-qv uses pallet-identity for now, but the real Votion parachain could plug in a more built out identity solution like Kilt, Litentry, or Encointer.
 
 Every verified identity gets an amount of coins, say 1000.
-Let's call them POW, as in power, so each user gets 1000 POW.
+Let's call them PWR, since they represent voting power.
+Each user gets 1000 PWR upon joining the pool of verified users.
+PWR can not be lost from the account or transmitted between users.
 
-The parachain is an engine for referendums that use quadratic vote pricing.
-Any user can post a referendum proposal, backing it with a minimum of 1 POW -> 1 BAK.
-Any user can back any referendum proposal only once.
-The proposal gets backed by an amount of BAK equal to the square root of how much POW the user pays.
+The Votion parachain is an engine for referendums that use quadratic vote pricing.
 
-The POW that the user sends gets reserved.
-They are sent back to the users when the proposal fails, or when an eventual referendum is over.
+Referendums have two phases: launch phase and voting phase.
+Each of them last 1 month.
+The voting phase is only initialized if the launch phase succeeds.
+If the proposal receives 1000 quadratically priced votes in the launch phase, then a voting phase is launched.
 
-The referendum is in the proposal phase for 1 month.
-If the proposal receives 1000 BAK within 1 month, then it will go into a voting phase after that month.
+During the launch phase, users vote about whether to launch a voting phase.
+The only voting option is "YES" during the launch phase, and any user can only vote once.
+They reserve an amount of PWR to "buy" quadratically priced YES-votes.
 
-A voting phase lasts 1 month.
-During a voting phase, any user can vote one time by sending POW.
-The referendum receives a number of YESs or NOs for each user that sends POW.
-Each user must vote either YES or NO, and back that by reserving some amount of POW.
-The number of YES/NO, again, is equal to the square root of the number of POW sent by the specific user.
+Users who voted in a launch phase are allowed to also vote in the voting phase, but their PWR from the launch phase remain reserved and are not available.
+During the voting phase there are two voting options: "AYE" and "NEY".
+Users can vote once and must cast all votes on "AYE" or all votes on "NEY", they can not split their votes.
 
-POW is an on-chain coin. BAK, YES, and NO need not be coins. They are used here to make it easier to describe vote pricing.
+If the launch phase of a proposal fails, all backers' PWR get unreserved.
 
-When the referendum is over, all POW sent to mint BAK, YES, and NO for the referendu gets unreserved, to become available to users again.
+Any user can post a referendum proposal, but must back it by reserving at least 1 PWR.
+This would start a referendum launch phase with 1 initial YES-vote.
+Price per vote is quadratic, so posting a referendum proposal and backing it with 4 PWR
+launches the proposal with 2 initial votes.
+
+When the referendum is over, all PWR sent to mint BAK, YES, and NO for the referendu gets unreserved, to become available to users again.
 The result of any finished referendum gets recorded on-chain.
 This list of referendum results is the main output and value produced by the Votion system.
 
