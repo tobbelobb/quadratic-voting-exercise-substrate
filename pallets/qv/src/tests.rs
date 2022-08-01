@@ -3,6 +3,7 @@ use frame_support::{assert_noop, assert_ok, BoundedVec};
 
 use pallet_balances::Error as BalancesError;
 use pallet_identity::{Data, IdentityInfo};
+use pallet_referenda::ReferendumCount;
 use sp_runtime::{
 	traits::{BlakeTwo256, Hash},
 	DispatchError,
@@ -21,14 +22,6 @@ fn last_event() -> QvEvent<Test> {
 		.filter_map(|e| if let Event::Qv(inner) = e { Some(inner) } else { None })
 		.last()
 		.unwrap()
-}
-
-#[test]
-fn correct_error_for_none_value() {
-	new_test_ext().execute_with(|| {
-		// Ensure the expected error is thrown when no value is present.
-		assert_noop!(Qv::cause_error(Origin::signed(1)), Error::<Test>::NoneValue);
-	});
 }
 
 const SMALL_AMOUNT: u64 = 1;
@@ -104,7 +97,9 @@ fn try_successful_nonzero_reserve() {
 
 		assert_ok!(Qv::reserve_an_amount_of_token(who.clone(), SMALL_AMOUNT));
 
-		// Checks that the correct event was emitted
+		// Identity pallet should have emitted an event
+		System::assert_has_event(Event::Identity(pallet_identity::Event::IdentitySet { who: 10 }));
+		// Checks that the correct event was emitted by pallet-qv
 		assert_eq!(last_event(), QvEvent::AmountReserved(SMALL_AMOUNT));
 	});
 }
@@ -153,53 +148,9 @@ fn unreserve_then_reserve_again() {
 }
 
 #[test]
-fn cast_single_vote() {
-	new_test_ext().execute_with(|| {
-		// Events are not populated in the genesis block
-		System::set_block_number(1);
-		let who = Origin::signed(10);
-
-		assert_ok!(Identity::set_identity(who.clone(), Box::new(info())));
-
-		assert_ok!(Qv::cast_votes(who.clone(), 1));
-
-		// Should use assert_last_event!()
-		assert_eq!(last_event(), QvEvent::VotesCast { id: 10, number_of_votes: 1 });
-	});
-}
-
-#[test]
-fn cast_more_votes_than_allowed() {
-	new_test_ext().execute_with(|| {
-		let who = Origin::signed(10);
-
-		assert_ok!(Identity::set_identity(who.clone(), Box::new(info())));
-
-		// Free balance is not reduced by trying to cast too many votes
-		assert_eq!(Balances::free_balance(10), 90);
-		assert_noop!(Qv::cast_votes(who, 11), BalancesError::<Test>::InsufficientBalance);
-		assert_eq!(Balances::free_balance(10), 90);
-	});
-}
-
-#[test]
 fn try_cast_vote_no_identity() {
 	new_test_ext().execute_with(|| {
-		assert_noop!(Qv::cast_votes(Origin::signed(1), 1), Error::<Test>::NoIdentity);
-	});
-}
-
-#[test]
-fn post_proposal_happy_case() {
-	new_test_ext().execute_with(|| {
-		System::set_block_number(1);
-
-		let who = Origin::signed(10);
-		assert_ok!(Identity::set_identity(who.clone(), Box::new(info())));
-
-		let proposal = BlakeTwo256::hash_of(&1);
-
-		assert_ok!(Qv::post_referendum(who.clone(), proposal));
+		assert_noop!(Qv::cast_launch_votes(Origin::signed(1), 1, 0), Error::<Test>::NoIdentity);
 	});
 }
 
@@ -229,9 +180,55 @@ fn initiate_referendum_happy_case() {
 		let who = Origin::signed(30);
 		assert_ok!(Identity::set_identity(who.clone(), Box::new(info())));
 
-		let proposal = BlakeTwo256::hash_of(&1);
+		let proposal_hash = BlakeTwo256::hash_of(&1);
 
 		assert_eq!(Balances::free_balance(30), 1000);
-		assert_ok!(Qv::initiate_referendum(who.clone(), proposal));
+		assert_ok!(Qv::initiate_referendum(who.clone(), proposal_hash));
+		assert_eq!(Balances::free_balance(30), 0);
+
+		System::assert_has_event(Event::Referenda(pallet_referenda::Event::Submitted {
+			index: 0,
+			track: 0,
+			proposal_hash,
+		}));
+
+		assert_eq!(ReferendumCount::<Test>::get(), 1);
+	});
+}
+
+#[test]
+fn cast_single_launch_vote() {
+	new_test_ext().execute_with(|| {
+		// Events are not populated in the genesis block
+		System::set_block_number(1);
+		let referendum_initiator = Origin::signed(30);
+		assert_ok!(Identity::set_identity(referendum_initiator.clone(), Box::new(info())));
+		let proposal_hash = BlakeTwo256::hash_of(&1);
+		assert_ok!(Qv::initiate_referendum(referendum_initiator, proposal_hash));
+
+		let launch_voter = Origin::signed(20);
+		assert_ok!(Identity::set_identity(launch_voter.clone(), Box::new(info())));
+		assert_ok!(Qv::cast_launch_votes(launch_voter, 1, 0));
+
+		assert_eq!(last_event(), QvEvent::LaunchVotesCast { number_of_votes: 1, index: 0 });
+	});
+}
+
+#[test]
+fn cast_more_launch_votes_than_allowed() {
+	new_test_ext().execute_with(|| {
+		let referendum_initiator = Origin::signed(30);
+		assert_ok!(Identity::set_identity(referendum_initiator.clone(), Box::new(info())));
+		let proposal_hash = BlakeTwo256::hash_of(&1);
+		assert_ok!(Qv::initiate_referendum(referendum_initiator, proposal_hash));
+
+		let launch_voter = Origin::signed(20);
+		assert_ok!(Identity::set_identity(launch_voter.clone(), Box::new(info())));
+		assert_eq!(Balances::free_balance(20), 100);
+		assert_noop!(
+			Qv::cast_launch_votes(launch_voter, 11, 0),
+			BalancesError::<Test>::InsufficientBalance
+		); // 11*11 > 100
+		assert_eq!(Balances::free_balance(20), 100);
 	});
 }

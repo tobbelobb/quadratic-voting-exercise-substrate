@@ -4,8 +4,6 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
-use codec::{Decode, Encode, MaxEncodedLen};
-
 pub use pallet::*;
 
 #[cfg(test)]
@@ -17,37 +15,22 @@ mod tests;
 #[cfg(feature = "runtime-benchmarks")]
 mod benchmarking;
 
-#[derive(
-	Clone,
-	Encode,
-	Decode,
-	MaxEncodedLen,
-	Eq,
-	PartialEq,
-	sp_runtime::RuntimeDebug,
-	Default,
-	scale_info::TypeInfo,
-)]
-pub struct Proposal<Hash> {
-	proposal: Hash,
-}
-
 #[frame_support::pallet]
 pub mod pallet {
 	use frame_support::{
 		pallet_prelude::*,
-		traits::{Currency, ReservableCurrency},
+		traits::{schedule::DispatchTime, Currency, ReservableCurrency},
 	};
-	use frame_system::pallet_prelude::*;
+	use frame_system::{pallet_prelude::*, RawOrigin};
 
 	// From pallet_identity we use functions has_identity() and set_identity()
 	use pallet_identity::IdentityField;
 	const IDENTITY_FIELD_DISPLAY: u64 = IdentityField::Display as u64;
 
+	use pallet_referenda::ReferendumIndex;
+
 	type BalanceOf<T> =
 		<<T as Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
-
-	const MAX_PWR: u32 = 1000;
 
 	/// Configure the pallet by specifying the parameters and types on which it depends.
 	/// Uses tight coupling of pallet_identity and pallet_referenda
@@ -64,14 +47,6 @@ pub mod pallet {
 	#[pallet::generate_store(pub(super) trait Store)]
 	pub struct Pallet<T>(_);
 
-	/// The public proposals. Unsorted. The second item is the proposal's hash.
-	/// TODO: do we need a proposal index?
-	///       I don't think we need the account id.
-	///       do we want to store referendums in their entirety?
-	#[pallet::storage]
-	#[pallet::getter(fn public_props)]
-	pub type PublicProps<T: Config> = StorageValue<_, crate::Proposal<T::Hash>, OptionQuery>;
-
 	// Pallets use events to inform users when important changes are made.
 	// https://docs.substrate.io/v3/runtime/events-and-errors
 	#[pallet::event]
@@ -84,8 +59,8 @@ pub mod pallet {
 		/// An amount from the specified accound was unreserved
 		AmountUnreserved(BalanceOf<T>),
 
-		/// TODO: Exposing account id here goes against voting anonymity.
-		VotesCast { id: T::AccountId, number_of_votes: BalanceOf<T> },
+		/// Somebody voted to launch a referendum
+		LaunchVotesCast { number_of_votes: BalanceOf<T>, index: ReferendumIndex },
 	}
 
 	// Errors inform users that something went wrong.
@@ -106,26 +81,6 @@ pub mod pallet {
 	// Dispatchable functions must be annotated with a weight and must return a DispatchResult.
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
-		/// An example dispatchable that may throw a custom error.
-		#[pallet::weight(10_000 + T::DbWeight::get().reads_writes(1,1))]
-		pub fn cause_error(origin: OriginFor<T>) -> DispatchResult {
-			ensure_signed(origin)?;
-
-			// Read a value from storage.
-			match <PublicProps<T>>::get() {
-				// Return an error if the value has not been set.
-				None => return Err(Error::<T>::NoneValue.into()),
-				Some(_old) => {
-					// Increment the value read from storage; will error in the event of overflow.
-					// TODO: new thing
-					//let new = old.ok_or(Error::<T>::StorageOverflow)?;
-					//// Update the value in storage with the incremented result.
-					//<PublicProps<T>>::put(new);
-					Ok(())
-				},
-			}
-		}
-
 		/// Reserves an amount of token for a user.
 		#[pallet::weight(10_000 + T::DbWeight::get().writes(1))]
 		pub fn reserve_an_amount_of_token(
@@ -163,36 +118,37 @@ pub mod pallet {
 
 		#[pallet::weight(10_000 + T::DbWeight::get().writes(1))]
 		pub fn initiate_referendum(origin: OriginFor<T>, proposal: T::Hash) -> DispatchResult {
-			Self::reserve_an_amount_of_token(origin.clone(), MAX_PWR.into())?;
-			Self::post_referendum(origin, proposal)
-		}
-
-		#[pallet::weight(10_000 + T::DbWeight::get().writes(1))]
-		pub fn post_referendum(_origin: OriginFor<T>, proposal: T::Hash) -> DispatchResult {
-			PublicProps::<T>::put(crate::Proposal { proposal });
-			Ok(())
+			const REFERENDUM_BLOCKS_TOTAL: u32 = 892800; // 2*31*24*60*60/6 = "Two months" / "block time"
+			let now = <frame_system::Pallet<T>>::block_number();
+			<pallet_referenda::Pallet<T>>::submit(
+				origin,
+				Box::new(RawOrigin::Root.into()),
+				proposal,
+				DispatchTime::At(now + REFERENDUM_BLOCKS_TOTAL.into()),
+			)
 		}
 
 		/// Casts vote on behalf of identified user
 		#[pallet::weight(10_000 + T::DbWeight::get().writes(1))]
-		pub fn cast_votes(origin: OriginFor<T>, number_of_votes: BalanceOf<T>) -> DispatchResult {
-			let tokens_bound =
-				Self::reserve_an_amount_of_token(origin.clone(), number_of_votes * number_of_votes);
-			if tokens_bound == Ok(()) {
-				// Tokens are bound now so we can update the referendum
-				// ... however a referendum will end up being represented
+		pub fn cast_launch_votes(
+			origin: OriginFor<T>,
+			number_of_votes: BalanceOf<T>,
+			index: ReferendumIndex,
+		) -> DispatchResultWithPostInfo {
+			// TODO: if the referendum exists.. {
+			Self::reserve_an_amount_of_token(origin.clone(), number_of_votes * number_of_votes)?;
+			Self::deposit_event(Event::LaunchVotesCast { number_of_votes, index });
 
-				// Update storage.
-				//<PublicProps<T>>::put(number_of_votes);
-				//<PublicProps<T>>::put(BlakeTwo256::hash_of(&1));
-				Self::deposit_event(Event::VotesCast {
-					id: ensure_signed(origin)?, // There must be a better way to get AccountId out
-					number_of_votes,
-				});
-				Ok(())
-			} else {
-				tokens_bound
+			// TODO: If enough launch votes have been cast:
+			if false {
+				return <pallet_referenda::Pallet<T>>::place_decision_deposit(
+					origin, /* TODO: We need a special origin that represents everyone, to
+					         * "split the bill" for us */
+					index,
+				)
 			}
+			Ok(().into())
+			//}
 		}
 
 		//pub fn check_proposal_exists() -> Option<T::Hash> {}

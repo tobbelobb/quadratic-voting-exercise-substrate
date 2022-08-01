@@ -58,7 +58,8 @@ When the referendum is over, all PWR reserved by proposer, backers and voters ge
 The result of any finished referendum gets recorded on-chain.
 This list of referendum results is the main output and value produced by the Votion system.
 
-Any number of referenda can be ongoing at any time, both launch phase ones and voting phase ones.
+Any number of referenda, up to a very high max limit, can be ongoing simultaneously at any time,
+both launch phase ones and voting phase ones.
 
 Votion can be thought of as an ocean of referenda and voting.
 The word votion is also similar to the word devotion.

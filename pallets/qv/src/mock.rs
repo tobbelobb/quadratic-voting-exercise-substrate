@@ -99,57 +99,45 @@ impl pallet_identity::Config for Test {
 	type WeightInfo = ();
 }
 
+const ONE_MONTH: u64 = 446400; // 31*24*60*60/6 = "One month" / "block time"
+
 pub struct TestTracksInfo;
 impl TracksInfo<u64, u64> for TestTracksInfo {
 	type Id = u8;
 	type Origin = <Origin as OriginTrait>::PalletsOrigin;
 	fn tracks() -> &'static [(Self::Id, TrackInfo<u64, u64>)] {
-		static DATA: [(u8, TrackInfo<u64, u64>); 2] = [
-			(
-				0u8,
-				TrackInfo {
-					name: "root",
-					max_deciding: 1,
-					decision_deposit: 10,
-					prepare_period: 4,
-					decision_period: 4,
-					confirm_period: 2,
-					min_enactment_period: 4,
-					min_approval: pallet_referenda::Curve::LinearDecreasing {
-						length: Perbill::from_percent(100),
-						floor: Perbill::from_percent(50),
-						ceil: Perbill::from_percent(100),
-					},
-					min_support: pallet_referenda::Curve::LinearDecreasing {
-						length: Perbill::from_percent(100),
-						floor: Perbill::from_percent(0),
-						ceil: Perbill::from_percent(100),
-					},
+		static DATA: [(u8, TrackInfo<u64, u64>); 1] = [(
+			// IMPORTANT STUFF, this is where we design our referenda.
+			// We try to match Votion's visions by configuring this right
+			0u8,
+			TrackInfo {
+				name: "votion",
+				max_deciding: 100_000, // This is how many referenda we can have at once
+				/// Amount that must be placed on deposit before a decision can be made.
+				decision_deposit: 1000, // Need 1000 PWR to go from launch to voting
+				/// Amount of time this must be submitted for before a decision can be made.
+				prepare_period: ONE_MONTH, // Don't think we will use the prepare period feture
+				/// Amount of time that a decision may take to be approved prior to
+				/// cancellation.
+				decision_period: ONE_MONTH,
+				/// Amount of time that the approval criteria must hold before it can be
+				/// approved.
+				confirm_period: 1,
+				/// Minimum amount of time that an approved proposal must be in the dispatch
+				/// queue.
+				min_enactment_period: 0,
+				min_approval: pallet_referenda::Curve::LinearDecreasing {
+					length: Perbill::one(), // Go flat at 0% almost from the start
+					floor: Perbill::zero(), // We want all referendums to "pass"
+					ceil: Perbill::from_percent(100),
 				},
-			),
-			(
-				1u8,
-				TrackInfo {
-					name: "none",
-					max_deciding: 3,
-					decision_deposit: 1,
-					prepare_period: 2,
-					decision_period: 2,
-					confirm_period: 1,
-					min_enactment_period: 2,
-					min_approval: pallet_referenda::Curve::LinearDecreasing {
-						length: Perbill::from_percent(100),
-						floor: Perbill::from_percent(95),
-						ceil: Perbill::from_percent(100),
-					},
-					min_support: pallet_referenda::Curve::LinearDecreasing {
-						length: Perbill::from_percent(100),
-						floor: Perbill::from_percent(90),
-						ceil: Perbill::from_percent(100),
-					},
+				min_support: pallet_referenda::Curve::LinearDecreasing {
+					length: Perbill::one(), // Go flat at 0% almost from the start
+					floor: Perbill::zero(), // We want all referendums to "pass"
+					ceil: Perbill::from_percent(100),
 				},
-			),
-		];
+			},
+		)];
 		&DATA[..]
 	}
 	fn track_for(id: &Self::Origin) -> Result<Self::Id, ()> {
@@ -250,9 +238,9 @@ impl pallet_referenda::Config for Test {
 	type Slash = ();
 	type Votes = u32;
 	type Tally = Tally;
-	type SubmissionDeposit = ConstU64<2>;
+	type SubmissionDeposit = ConstU64<1000>;
 	type MaxQueued = ConstU32<3>;
-	type UndecidingTimeout = ConstU64<20>;
+	type UndecidingTimeout = ConstU64<ONE_MONTH>; // "one month in sec" / "6s block time"
 	type AlarmInterval = AlarmInterval;
 	type Tracks = TestTracksInfo;
 }
@@ -285,7 +273,7 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
 	// Give different origins some start-mints
 	// the set_identity function costs 10 tokens...
 	pallet_balances::GenesisConfig::<Test> {
-		balances: vec![(1, 10), (2, 10), (3, 10), (10, 100), (20, 100), (30, 1010)],
+		balances: vec![(1, 10), (2, 10), (3, 10), (10, 100), (20, 110), (30, 1010)],
 	}
 	.assimilate_storage(&mut t)
 	.unwrap();
