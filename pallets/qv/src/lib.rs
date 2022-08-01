@@ -82,7 +82,7 @@ pub mod pallet {
 		AmountReserved(BalanceOf<T>),
 
 		/// An amount from the specified accound was unreserved
-		AmountUnreserved(T::AccountId, BalanceOf<T>),
+		AmountUnreserved(BalanceOf<T>),
 
 		/// TODO: Exposing account id here goes against voting anonymity.
 		VotesCast { id: T::AccountId, number_of_votes: BalanceOf<T> },
@@ -154,7 +154,7 @@ pub mod pallet {
 			let who = ensure_signed(origin)?;
 			if pallet_identity::Pallet::<T>::has_identity(&who, IDENTITY_FIELD_DISPLAY) {
 				<T as Config>::Currency::unreserve(&who, amount);
-				Self::deposit_event(Event::AmountUnreserved(who, amount));
+				Self::deposit_event(Event::AmountUnreserved(amount));
 				Ok(())
 			} else {
 				Err(Error::<T>::NoIdentity.into())

@@ -142,7 +142,7 @@ fn unreserve_then_reserve_again() {
 		assert_ok!(Qv::unreserve_an_amount_of_token(who.clone(), UNRESERVE_AMOUNT));
 
 		// Checks that the correct event was emitted
-		assert_eq!(last_event(), QvEvent::AmountUnreserved(10, UNRESERVE_AMOUNT));
+		assert_eq!(last_event(), QvEvent::AmountUnreserved(UNRESERVE_AMOUNT));
 
 		assert_ok!(Qv::reserve_an_amount_of_token(who.clone(), 10));
 		assert_noop!(
