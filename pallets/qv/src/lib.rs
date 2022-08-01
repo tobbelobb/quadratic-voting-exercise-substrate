@@ -1,8 +1,11 @@
+//! # Quadratic Voting Pallet ( pallet-qv )
+//!
+//! > NOTE: This pallet is tightly coupled with pallet-identity and pallet-referenda.
+
 #![cfg_attr(not(feature = "std"), no_std)]
 
-/// Edit this file to define custom logic or remove it if it is not needed.
-/// Learn more about FRAME and the core library of Substrate FRAME pallets:
-/// <https://docs.substrate.io/v3/runtime/frame>
+use codec::{Decode, Encode, MaxEncodedLen};
+
 pub use pallet::*;
 
 #[cfg(test)]
@@ -13,6 +16,22 @@ mod tests;
 
 #[cfg(feature = "runtime-benchmarks")]
 mod benchmarking;
+
+#[derive(
+	Clone,
+	Encode,
+	Decode,
+	MaxEncodedLen,
+	Eq,
+	PartialEq,
+	sp_runtime::RuntimeDebug,
+	Default,
+	scale_info::TypeInfo,
+)]
+pub struct Proposal<Balance, Hash> {
+	backing: Balance,
+	statement: Hash,
+}
 
 #[frame_support::pallet]
 pub mod pallet {
@@ -50,8 +69,8 @@ pub mod pallet {
 	///       do we want to store referendums in their entirety?
 	#[pallet::storage]
 	#[pallet::getter(fn public_props)]
-	pub type PublicProps<T: Config> = StorageValue<_, u32>;
-	//pub type PublicProps<T: Config> = StorageValue<_, Vec<(T::Hash, T::AccountId)>, OptionQuery>;
+	pub type PublicProps<T: Config> =
+		StorageValue<_, crate::Proposal<BalanceOf<T>, T::Hash>, OptionQuery>;
 
 	// Pallets use events to inform users when important changes are made.
 	// https://docs.substrate.io/v3/runtime/events-and-errors
@@ -90,17 +109,18 @@ pub mod pallet {
 		/// An example dispatchable that may throw a custom error.
 		#[pallet::weight(10_000 + T::DbWeight::get().reads_writes(1,1))]
 		pub fn cause_error(origin: OriginFor<T>) -> DispatchResult {
-			let _who = ensure_signed(origin)?;
+			ensure_signed(origin)?;
 
 			// Read a value from storage.
 			match <PublicProps<T>>::get() {
 				// Return an error if the value has not been set.
 				None => return Err(Error::<T>::NoneValue.into()),
-				Some(old) => {
+				Some(_old) => {
 					// Increment the value read from storage; will error in the event of overflow.
-					let new = old.checked_add(1).ok_or(Error::<T>::StorageOverflow)?;
-					// Update the value in storage with the incremented result.
-					<PublicProps<T>>::put(new);
+					// TODO: new thing
+					//let new = old.ok_or(Error::<T>::StorageOverflow)?;
+					//// Update the value in storage with the incremented result.
+					//<PublicProps<T>>::put(new);
 					Ok(())
 				},
 			}
@@ -141,6 +161,17 @@ pub mod pallet {
 			}
 		}
 
+		#[pallet::weight(10_000 + T::DbWeight::get().writes(1))]
+		pub fn post_proposal(
+			origin: OriginFor<T>,
+			number_of_votes: BalanceOf<T>,
+			statement: T::Hash,
+		) -> DispatchResult {
+			Self::reserve_an_amount_of_token(origin, number_of_votes * number_of_votes)?;
+			PublicProps::<T>::put(crate::Proposal { backing: number_of_votes, statement });
+			Ok(())
+		}
+
 		/// Casts vote on behalf of identified user
 		#[pallet::weight(10_000 + T::DbWeight::get().writes(1))]
 		pub fn cast_votes(origin: OriginFor<T>, number_of_votes: BalanceOf<T>) -> DispatchResult {
@@ -152,7 +183,7 @@ pub mod pallet {
 
 				// Update storage.
 				//<PublicProps<T>>::put(number_of_votes);
-				<PublicProps<T>>::put(1);
+				//<PublicProps<T>>::put(BlakeTwo256::hash_of(&1));
 				Self::deposit_event(Event::VotesCast {
 					id: ensure_signed(origin)?, // There must be a better way to get AccountId out
 					number_of_votes,
@@ -162,5 +193,7 @@ pub mod pallet {
 				tokens_bound
 			}
 		}
+
+		//pub fn check_proposal_exists() -> Option<T::Hash> {}
 	}
 }

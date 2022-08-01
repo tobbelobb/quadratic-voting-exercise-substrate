@@ -3,7 +3,10 @@ use frame_support::{assert_noop, assert_ok, BoundedVec};
 
 use pallet_balances::Error as BalancesError;
 use pallet_identity::{Data, IdentityInfo};
-use sp_runtime::DispatchError;
+use sp_runtime::{
+	traits::{BlakeTwo256, Hash},
+	DispatchError,
+};
 
 use crate::Event as QvEvent;
 
@@ -183,5 +186,19 @@ fn cast_more_votes_than_allowed() {
 fn try_cast_vote_no_identity() {
 	new_test_ext().execute_with(|| {
 		assert_noop!(Qv::cast_votes(Origin::signed(1), 1), Error::<Test>::NoIdentity);
+	});
+}
+
+#[test]
+fn post_proposal_happy_case() {
+	new_test_ext().execute_with(|| {
+		System::set_block_number(1);
+
+		let who = Origin::signed(10);
+		assert_ok!(Identity::set_identity(who.clone(), Box::new(info())));
+
+		let proposal = BlakeTwo256::hash_of(&1);
+
+		assert_ok!(Qv::post_proposal(who.clone(), 1, proposal));
 	});
 }
