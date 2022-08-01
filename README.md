@@ -22,9 +22,12 @@ A learning project to get me into Substrate development. A simple quadratic voti
  - [ ] In release builds, the events should not expose voters' AccountIds. Make it hard to prove to someone voted in a particular way.
 
 ## Parachain Idea: Votion
-On Votion we only have identified users.
-It builds upon the pallet-qv from this repo.
-The pallet-qv uses pallet-identity for now, but the real Votion parachain could plug in a more built out identity solution like Kilt, Litentry, or Encointer.
+On Votion we have a system for identifying users.
+All users must be identified to participate.
+
+The Votion parachain builds upon the pallet-qv that is developed in this repo.
+The pallet-qv uses FRAME's official pallet-identity.
+A real Votion parachain could plug in a more built out identity solution like Kilt, Litentry, or Encointer.
 
 Every verified identity gets an amount of coins, say 1000.
 Let's call them PWR, since they represent voting power.
@@ -36,7 +39,8 @@ The Votion parachain is an engine for referendums that use quadratic vote pricin
 Referendums have two phases: launch phase and voting phase.
 Each of them last 1 month.
 The voting phase is only initialized if the launch phase succeeds.
-If the proposal receives 1000 quadratically priced votes in the launch phase, then a voting phase is launched.
+If the proposal receives 1000 quadratically priced votes in the launch phase,
+then a voting phase is launched automatically through on-chain logic.
 
 During the launch phase, users vote about whether to launch a voting phase.
 The only voting option is "YES" during the launch phase, and any user can only vote once.
@@ -48,21 +52,19 @@ Users can vote once and must cast all votes on "AYE" or all votes on "NEY", they
 
 If the launch phase of a proposal fails, all backers' PWR get unreserved.
 
-Any user can post a referendum proposal, but must back it by reserving at least 1 PWR.
-This would start a referendum launch phase with 1 initial YES-vote.
-Price per vote is quadratic, so posting a referendum proposal and backing it with 4 PWR
-launches the proposal with 2 initial votes.
+Any user can post a referendum proposal, but must back it by reserving 1000 PWR.
 
-When the referendum is over, all PWR sent to mint BAK, YES, and NO for the referendu gets unreserved, to become available to users again.
+When the referendum is over, all PWR reserved by proposer, backers and voters get unreserved and available to users again.
 The result of any finished referendum gets recorded on-chain.
 This list of referendum results is the main output and value produced by the Votion system.
 
-Any number of referenda can be ongoing at any time, both proposal phase ones and voting phase ones.
+Any number of referenda can be ongoing at any time, both launch phase ones and voting phase ones.
+
 Votion can be thought of as an ocean of referenda and voting.
 The word votion is also similar to the word devotion.
 
 Votion does not try to affect what's getting voted over.
-The accumulated results of voting outcomes will most likely contains self-contradictions.
+The accumulated results of voting outcomes will most likely contain self-contradictions.
 
 For example, on day 50, we might see "Alice should color her hair green. YES: 42, NO: 10."
 However, on day 51, we might get a result "Alice should not have green hair ever. YES: 20, NO: 1."
