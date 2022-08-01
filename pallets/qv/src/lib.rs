@@ -78,8 +78,8 @@ pub mod pallet {
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config> {
 		/// An amount from the specified accound was reserved
-		/// TODO: Exposing account id here goes against voting anonymity.
-		AmountReserved(T::AccountId, BalanceOf<T>),
+		/// Exposing account id here would go against voting anonymity.
+		AmountReserved(BalanceOf<T>),
 
 		/// An amount from the specified accound was unreserved
 		AmountUnreserved(T::AccountId, BalanceOf<T>),
@@ -137,7 +137,7 @@ pub mod pallet {
 				// If funds are too low and Err will be returned
 				let res = <T as Config>::Currency::reserve(&who, amount);
 				if res == Ok(()) {
-					Self::deposit_event(Event::AmountReserved(who, amount));
+					Self::deposit_event(Event::AmountReserved(amount));
 				}
 				res
 			} else {

@@ -105,7 +105,7 @@ fn try_successful_nonzero_reserve() {
 		assert_ok!(Qv::reserve_an_amount_of_token(who.clone(), SMALL_AMOUNT));
 
 		// Checks that the correct event was emitted
-		assert_eq!(last_event(), QvEvent::AmountReserved(10, SMALL_AMOUNT));
+		assert_eq!(last_event(), QvEvent::AmountReserved(SMALL_AMOUNT));
 	});
 }
 
