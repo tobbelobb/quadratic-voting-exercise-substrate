@@ -7,6 +7,10 @@ use sp_runtime::DispatchError;
 
 use crate::Event as QvEvent;
 
+/// TODO: there's something called something like
+/// frame_system::pallet::<T>::assert_has_event!()
+/// and assert_last_event!() that we should maybe use instead
+/// of rolling our own here.
 fn last_event() -> QvEvent<Test> {
 	System::events()
 		.into_iter()
@@ -14,16 +18,6 @@ fn last_event() -> QvEvent<Test> {
 		.filter_map(|e| if let Event::Qv(inner) = e { Some(inner) } else { None })
 		.last()
 		.unwrap()
-}
-
-#[test]
-fn it_works_for_default_value() {
-	new_test_ext().execute_with(|| {
-		// Dispatch a signed extrinsic.
-		assert_ok!(Qv::do_something(Origin::signed(1), 42));
-		// Read pallet storage and assert an expected result.
-		assert_eq!(Qv::something(), Some(42));
-	});
 }
 
 #[test]
@@ -158,6 +152,7 @@ fn unreserve_then_reserve_again() {
 #[test]
 fn cast_single_vote() {
 	new_test_ext().execute_with(|| {
+		// Events are not populated in the genesis block
 		System::set_block_number(1);
 		let who = Origin::signed(10);
 
@@ -165,6 +160,7 @@ fn cast_single_vote() {
 
 		assert_ok!(Qv::cast_votes(who.clone(), 1));
 
+		// Should use assert_last_event!()
 		assert_eq!(last_event(), QvEvent::VotesCast { id: 10, number_of_votes: 1 });
 	});
 }

@@ -26,6 +26,9 @@ pub mod pallet {
 	use pallet_identity::IdentityField;
 	const IDENTITY_FIELD_DISPLAY: u64 = IdentityField::Display as u64;
 
+	type BalanceOf<T> =
+		<<T as Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
+
 	/// Configure the pallet by specifying the parameters and types on which it depends.
 	/// Uses tight coupling of pallet_identity and pallet_referenda
 	#[pallet::config]
@@ -41,32 +44,29 @@ pub mod pallet {
 	#[pallet::generate_store(pub(super) trait Store)]
 	pub struct Pallet<T>(_);
 
-	// The pallet's runtime storage items.
-	// https://docs.substrate.io/v3/runtime/storage
+	/// The public proposals. Unsorted. The second item is the proposal's hash.
+	/// TODO: do we need a proposal index?
+	///       I don't think we need the account id.
+	///       do we want to store referendums in their entirety?
 	#[pallet::storage]
-	#[pallet::getter(fn something)]
-	// Learn more about declaring storage items:
-	// https://docs.substrate.io/v3/runtime/storage#declaring-storage-items
-	pub type Something<T> = StorageValue<_, u32>;
+	#[pallet::getter(fn public_props)]
+	pub type PublicProps<T: Config> = StorageValue<_, u32>;
+	//pub type PublicProps<T: Config> = StorageValue<_, Vec<(T::Hash, T::AccountId)>, OptionQuery>;
 
 	// Pallets use events to inform users when important changes are made.
 	// https://docs.substrate.io/v3/runtime/events-and-errors
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config> {
-		/// Event documentation should end with an array that provides descriptive names for event
-		/// parameters. [something, who]
-		SomethingStored(u32, T::AccountId),
 		/// An amount from the specified accound was reserved
-		AmountReserved(T::AccountId, <<T as Config>::Currency as Currency<T::AccountId>>::Balance),
-		AmountUnreserved(
-			T::AccountId,
-			<<T as Config>::Currency as Currency<T::AccountId>>::Balance,
-		),
-		VotesCast {
-			id: T::AccountId,
-			number_of_votes: <<T as Config>::Currency as Currency<T::AccountId>>::Balance,
-		},
+		/// TODO: Exposing account id here goes against voting anonymity.
+		AmountReserved(T::AccountId, BalanceOf<T>),
+
+		/// An amount from the specified accound was unreserved
+		AmountUnreserved(T::AccountId, BalanceOf<T>),
+
+		/// TODO: Exposing account id here goes against voting anonymity.
+		VotesCast { id: T::AccountId, number_of_votes: BalanceOf<T> },
 	}
 
 	// Errors inform users that something went wrong.
@@ -78,6 +78,8 @@ pub mod pallet {
 		StorageOverflow,
 		/// User has not set an identity
 		NoIdentity,
+		/// The proposal already exists
+		DuplicateProposal,
 	}
 
 	// Dispatchable functions allows users to interact with the pallet and invoke state changes.
@@ -85,38 +87,20 @@ pub mod pallet {
 	// Dispatchable functions must be annotated with a weight and must return a DispatchResult.
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
-		/// An example dispatchable that takes a singles value as a parameter, writes the value to
-		/// storage and emits an event. This function must be dispatched by a signed extrinsic.
-		#[pallet::weight(10_000 + T::DbWeight::get().writes(1))]
-		pub fn do_something(origin: OriginFor<T>, something: u32) -> DispatchResult {
-			// Check that the extrinsic was signed and get the signer.
-			// This function will return an error if the extrinsic is not signed.
-			// https://docs.substrate.io/v3/runtime/origins
-			let who = ensure_signed(origin)?;
-
-			// Update storage.
-			<Something<T>>::put(something);
-
-			// Emit an event.
-			Self::deposit_event(Event::SomethingStored(something, who));
-			// Return a successful DispatchResultWithPostInfo
-			Ok(())
-		}
-
 		/// An example dispatchable that may throw a custom error.
 		#[pallet::weight(10_000 + T::DbWeight::get().reads_writes(1,1))]
 		pub fn cause_error(origin: OriginFor<T>) -> DispatchResult {
 			let _who = ensure_signed(origin)?;
 
 			// Read a value from storage.
-			match <Something<T>>::get() {
+			match <PublicProps<T>>::get() {
 				// Return an error if the value has not been set.
 				None => return Err(Error::<T>::NoneValue.into()),
 				Some(old) => {
 					// Increment the value read from storage; will error in the event of overflow.
 					let new = old.checked_add(1).ok_or(Error::<T>::StorageOverflow)?;
 					// Update the value in storage with the incremented result.
-					<Something<T>>::put(new);
+					<PublicProps<T>>::put(new);
 					Ok(())
 				},
 			}
@@ -126,7 +110,7 @@ pub mod pallet {
 		#[pallet::weight(10_000 + T::DbWeight::get().writes(1))]
 		pub fn reserve_an_amount_of_token(
 			origin: OriginFor<T>,
-			amount: <<T as Config>::Currency as Currency<T::AccountId>>::Balance,
+			amount: BalanceOf<T>,
 		) -> DispatchResult {
 			let who = ensure_signed(origin)?;
 			if pallet_identity::Pallet::<T>::has_identity(&who, IDENTITY_FIELD_DISPLAY) {
@@ -145,13 +129,10 @@ pub mod pallet {
 		#[pallet::weight(10_000 + T::DbWeight::get().writes(1))]
 		pub fn unreserve_an_amount_of_token(
 			origin: OriginFor<T>,
-			amount: <<T as Config>::Currency as Currency<T::AccountId>>::Balance,
+			amount: BalanceOf<T>,
 		) -> DispatchResult {
 			let who = ensure_signed(origin)?;
 			if pallet_identity::Pallet::<T>::has_identity(&who, IDENTITY_FIELD_DISPLAY) {
-				// Will return a number:
-				// return max(0, amount - balance)
-				// but will never fail
 				<T as Config>::Currency::unreserve(&who, amount);
 				Self::deposit_event(Event::AmountUnreserved(who, amount));
 				Ok(())
@@ -162,16 +143,16 @@ pub mod pallet {
 
 		/// Casts vote on behalf of identified user
 		#[pallet::weight(10_000 + T::DbWeight::get().writes(1))]
-		pub fn cast_votes(
-			origin: OriginFor<T>,
-			number_of_votes: <<T as Config>::Currency as Currency<T::AccountId>>::Balance,
-		) -> DispatchResult {
+		pub fn cast_votes(origin: OriginFor<T>, number_of_votes: BalanceOf<T>) -> DispatchResult {
 			let tokens_bound =
 				Self::reserve_an_amount_of_token(origin.clone(), number_of_votes * number_of_votes);
 			if tokens_bound == Ok(()) {
 				// Tokens are bound now so we can update the referendum
 				// ... however a referendum will end up being represented
 
+				// Update storage.
+				//<PublicProps<T>>::put(number_of_votes);
+				<PublicProps<T>>::put(1);
 				Self::deposit_event(Event::VotesCast {
 					id: ensure_signed(origin)?, // There must be a better way to get AccountId out
 					number_of_votes,

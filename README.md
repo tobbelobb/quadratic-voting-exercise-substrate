@@ -18,7 +18,7 @@ A learning project to get me into Substrate development. A simple quadratic voti
  - [x] Weigh reserved tokens on quadratic scale
  - [ ] Represent referendums
 
-## TODO
+## Backlog
  - [ ] In release builds, the events should not expose voters too much. Bribery and buying others' votes should be made harder by making it impossible to prove to someone
    else that one voted in a particular way.
 
