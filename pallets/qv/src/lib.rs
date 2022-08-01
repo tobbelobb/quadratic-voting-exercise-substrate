@@ -28,9 +28,8 @@ mod benchmarking;
 	Default,
 	scale_info::TypeInfo,
 )]
-pub struct Proposal<Balance, Hash> {
-	backing: Balance,
-	statement: Hash,
+pub struct Proposal<Hash> {
+	proposal: Hash,
 }
 
 #[frame_support::pallet]
@@ -47,6 +46,8 @@ pub mod pallet {
 
 	type BalanceOf<T> =
 		<<T as Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
+
+	const MAX_PWR: u32 = 1000;
 
 	/// Configure the pallet by specifying the parameters and types on which it depends.
 	/// Uses tight coupling of pallet_identity and pallet_referenda
@@ -69,8 +70,7 @@ pub mod pallet {
 	///       do we want to store referendums in their entirety?
 	#[pallet::storage]
 	#[pallet::getter(fn public_props)]
-	pub type PublicProps<T: Config> =
-		StorageValue<_, crate::Proposal<BalanceOf<T>, T::Hash>, OptionQuery>;
+	pub type PublicProps<T: Config> = StorageValue<_, crate::Proposal<T::Hash>, OptionQuery>;
 
 	// Pallets use events to inform users when important changes are made.
 	// https://docs.substrate.io/v3/runtime/events-and-errors
@@ -162,13 +162,14 @@ pub mod pallet {
 		}
 
 		#[pallet::weight(10_000 + T::DbWeight::get().writes(1))]
-		pub fn post_proposal(
-			origin: OriginFor<T>,
-			number_of_votes: BalanceOf<T>,
-			statement: T::Hash,
-		) -> DispatchResult {
-			Self::reserve_an_amount_of_token(origin, number_of_votes * number_of_votes)?;
-			PublicProps::<T>::put(crate::Proposal { backing: number_of_votes, statement });
+		pub fn initiate_referendum(origin: OriginFor<T>, proposal: T::Hash) -> DispatchResult {
+			Self::reserve_an_amount_of_token(origin.clone(), MAX_PWR.into())?;
+			Self::post_referendum(origin, proposal)
+		}
+
+		#[pallet::weight(10_000 + T::DbWeight::get().writes(1))]
+		pub fn post_referendum(_origin: OriginFor<T>, proposal: T::Hash) -> DispatchResult {
+			PublicProps::<T>::put(crate::Proposal { proposal });
 			Ok(())
 		}
 

@@ -199,6 +199,39 @@ fn post_proposal_happy_case() {
 
 		let proposal = BlakeTwo256::hash_of(&1);
 
-		assert_ok!(Qv::post_proposal(who.clone(), 1, proposal));
+		assert_ok!(Qv::post_referendum(who.clone(), proposal));
+	});
+}
+
+#[test]
+fn initiate_referendum_insufficient_balance() {
+	new_test_ext().execute_with(|| {
+		System::set_block_number(1);
+
+		let who = Origin::signed(1);
+		assert_ok!(Identity::set_identity(who.clone(), Box::new(info())));
+
+		let proposal = BlakeTwo256::hash_of(&1);
+
+		assert_eq!(Balances::free_balance(1), 0);
+		assert_noop!(
+			Qv::initiate_referendum(who, proposal),
+			BalancesError::<Test>::InsufficientBalance
+		);
+	});
+}
+
+#[test]
+fn initiate_referendum_happy_case() {
+	new_test_ext().execute_with(|| {
+		System::set_block_number(1);
+
+		let who = Origin::signed(30);
+		assert_ok!(Identity::set_identity(who.clone(), Box::new(info())));
+
+		let proposal = BlakeTwo256::hash_of(&1);
+
+		assert_eq!(Balances::free_balance(30), 1000);
+		assert_ok!(Qv::initiate_referendum(who.clone(), proposal));
 	});
 }
