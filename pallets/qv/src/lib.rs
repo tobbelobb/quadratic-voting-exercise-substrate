@@ -41,6 +41,7 @@ pub mod pallet {
 		type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
 		/// We represent votes by reserving currency
 		type Currency: ReservableCurrency<Self::AccountId>;
+		type LaunchDeposit: Get<u64>;
 	}
 
 	#[pallet::pallet]
@@ -152,7 +153,7 @@ pub mod pallet {
 			index: ReferendumIndex,
 		) -> DispatchResultWithPostInfo {
 			let who = ensure_signed(origin.clone())?;
-			let _status = <pallet_referenda::Pallet<T>>::ensure_ongoing(index)?;
+			<pallet_referenda::Pallet<T>>::ensure_ongoing(index)?;
 
 			let disallowed_voters: Vec<T::AccountId> = <Depositors<T>>::get(index)
 				.unwrap_or_default()
@@ -166,7 +167,6 @@ pub mod pallet {
 			}
 
 			Self::reserve_an_amount_of_token(origin.clone(), number_of_votes * number_of_votes)?;
-
 			Self::deposit_event(Event::LaunchVotesCast { number_of_votes, index });
 
 			// Register the deposit
@@ -177,16 +177,10 @@ pub mod pallet {
 			let votes_cast =
 				depositors_vec_after.iter().fold(0u32.into(), |acc: BalanceOf<T>, x| acc + x.1);
 
-			// TODO: Get track.decision_deposit out of referendum pallet
-			// Or make it a shared constant between pallet-qv and pallet-referendum
-			// We should absolutely not repeat the number 1000 as a hard coded constant in the code
-			//if votes_cast >= 1000u32.into() {
-			//	return <pallet_referenda::Pallet<T>>::place_decision_deposit(
-			//		origin, /* TODO: We need a special origin that represents everyone, to
-			// 		         * "split the bill" for us */
-			//		index,
-			//	)
-			//}
+			// Is the aggregated deposit large enough yet?
+			if votes_cast >= (T::LaunchDeposit::get() as u32).into() {
+				todo!();
+			}
 			Ok(().into())
 		}
 	}

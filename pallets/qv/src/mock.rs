@@ -114,7 +114,7 @@ impl TracksInfo<u64, u64> for TestTracksInfo {
 				name: "votion",
 				max_deciding: 100_000, // This is how many referenda we can have at once
 				/// Amount that must be placed on deposit before a decision can be made.
-				decision_deposit: 1000, // Need 1000 PWR to go from launch to voting
+				decision_deposit: LAUNCH_DEPOSIT, // Need 1000 PWR to go from launch to voting
 				/// Amount of time this must be submitted for before a decision can be made.
 				prepare_period: ONE_MONTH, // Don't think we will use the prepare period feture
 				/// Amount of time that a decision may take to be approved prior to
@@ -245,9 +245,12 @@ impl pallet_referenda::Config for Test {
 	type Tracks = TestTracksInfo;
 }
 
+const LAUNCH_DEPOSIT: u64 = 1000;
+
 impl pallet_qv::Config for Test {
 	type Event = Event;
 	type Currency = Balances;
+	type LaunchDeposit = ConstU64<LAUNCH_DEPOSIT>;
 }
 
 // Configure a mock runtime to test the pallet.
