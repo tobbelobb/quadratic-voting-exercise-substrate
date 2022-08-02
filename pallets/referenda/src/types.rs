@@ -104,8 +104,8 @@ pub struct DecidingStatus<BlockNumber> {
 
 #[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug, TypeInfo, MaxEncodedLen)]
 pub struct Deposit<AccountId, Balance> {
-	pub(crate) who: AccountId,
-	pub(crate) amount: Balance,
+	pub who: AccountId,
+	pub amount: Balance,
 }
 
 #[derive(Clone, Encode, TypeInfo)]
@@ -179,7 +179,8 @@ pub struct ReferendumStatus<
 	/// The deposit reserved for the submission of this referendum.
 	pub(crate) submission_deposit: Deposit<AccountId, Balance>,
 	/// The deposit reserved for this referendum to be decided.
-	pub(crate) decision_deposit: Option<Deposit<AccountId, Balance>>,
+	pub decision_deposit: Option<Deposit<AccountId, Balance>>,
+	//pub decision_deposit: Option<Vec<Deposit<AccountId, Balance>>>,
 	/// The status of a decision being made. If `None`, it has not entered the deciding period.
 	pub(crate) deciding: Option<DecidingStatus<Moment>>,
 	/// The current tally of votes in this referendum.

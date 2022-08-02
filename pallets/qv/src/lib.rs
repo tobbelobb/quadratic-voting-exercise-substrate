@@ -27,7 +27,7 @@ pub mod pallet {
 	use pallet_identity::IdentityField;
 	const IDENTITY_FIELD_DISPLAY: u64 = IdentityField::Display as u64;
 
-	use pallet_referenda::ReferendumIndex;
+	use pallet_referenda::{ReferendumIndex, ReferendumInfoFor};
 
 	type BalanceOf<T> =
 		<<T as Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
@@ -68,6 +68,9 @@ pub mod pallet {
 
 		/// Somebody voted to launch a referendum
 		LaunchVotesCast { number_of_votes: BalanceOf<T>, index: ReferendumIndex },
+
+		/// Referendum launch phase was successfull and will transition to voting phase
+		LaunchPhaseSuccess { index: ReferendumIndex },
 	}
 
 	// Errors inform users that something went wrong.
@@ -156,7 +159,7 @@ pub mod pallet {
 			index: ReferendumIndex,
 		) -> DispatchResult {
 			let who = ensure_signed(origin.clone())?;
-			let _status = <pallet_referenda::Pallet<T>>::ensure_ongoing(index)?;
+			let mut status = <pallet_referenda::Pallet<T>>::ensure_ongoing(index)?;
 
 			let disallowed_voters: Vec<T::AccountId> = <Depositors<T>>::get(index)
 				.unwrap_or_default()
@@ -173,7 +176,7 @@ pub mod pallet {
 			Self::deposit_event(Event::LaunchVotesCast { number_of_votes, index });
 
 			// Register the deposit
-			let backer_element = (who, number_of_votes);
+			let backer_element = (who.clone(), number_of_votes);
 			<Depositors<T>>::append(index, backer_element);
 			let depositors_vec_after = <Depositors<T>>::get(index).unwrap_or_default();
 
@@ -182,7 +185,19 @@ pub mod pallet {
 
 			// Is the aggregated deposit large enough yet?
 			if votes_cast >= (T::LaunchDeposit::get() as u32).into() {
-				todo!();
+				status.decision_deposit = Some(pallet_referenda::Deposit {
+					who, // TODO. This is just the wrong AccountId.
+					// Would prefer to change pallet_referenda's
+					// ReferendumStatus.decision_deposit type Vec<Deposit>
+					// instead of just Deposit
+					amount: (T::LaunchDeposit::get() as u32).into(),
+				});
+
+				let now = frame_system::Pallet::<T>::block_number();
+				let (info, _, _) =
+					<pallet_referenda::Pallet<T>>::service_referendum(now, index, status);
+				ReferendumInfoFor::<T>::insert(index, info);
+				Self::deposit_event(Event::LaunchPhaseSuccess { index });
 			}
 			Ok(())
 		}

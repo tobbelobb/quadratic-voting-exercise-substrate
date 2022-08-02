@@ -864,7 +864,7 @@ impl<T: Config<I>, I: 'static> Pallet<T, I> {
 	/// The heaviest branch is likely to be when a proposal is placed into, or moved within, the
 	/// `TrackQueue`. Basically this happens when a referendum is in the deciding queue and receives
 	/// a vote, or when it moves into the deciding queue.
-	fn service_referendum(
+	pub fn service_referendum(
 		now: T::BlockNumber,
 		index: ReferendumIndex,
 		mut status: ReferendumStatusOf<T, I>,
