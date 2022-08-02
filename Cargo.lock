@@ -140,6 +140,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e22d1f4b888c298a027c99dc9048015fac177587de20fc30232a057dfbe24a21"
 
 [[package]]
+name = "assert_matches"
+version = "1.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9b34d609dfbaf33d6889b2b7106d3ca345eacad44200913df5ba02bfd31d2ba9"
+
+[[package]]
 name = "async-channel"
 version = "1.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4056,7 +4062,7 @@ dependencies = [
  "pallet-balances",
  "pallet-identity",
  "pallet-preimage",
- "pallet-referenda",
+ "pallet-referenda 4.0.0-dev",
  "pallet-scheduler",
  "parity-scale-codec",
  "scale-info",
@@ -4075,6 +4081,27 @@ dependencies = [
  "parity-scale-codec",
  "safe-mix",
  "scale-info",
+ "sp-runtime",
+ "sp-std",
+]
+
+[[package]]
+name = "pallet-referenda"
+version = "4.0.0-dev"
+dependencies = [
+ "assert_matches",
+ "frame-benchmarking",
+ "frame-support",
+ "frame-system",
+ "pallet-balances",
+ "pallet-preimage",
+ "pallet-scheduler",
+ "parity-scale-codec",
+ "scale-info",
+ "serde",
+ "sp-arithmetic",
+ "sp-core",
+ "sp-io",
  "sp-runtime",
  "sp-std",
 ]
@@ -5078,7 +5105,7 @@ dependencies = [
  "pallet-identity",
  "pallet-qv",
  "pallet-randomness-collective-flip",
- "pallet-referenda",
+ "pallet-referenda 4.0.0-dev (git+https://github.com/paritytech/substrate.git?branch=polkadot-v0.9.26)",
  "pallet-sudo",
  "pallet-timestamp",
  "pallet-transaction-payment",
