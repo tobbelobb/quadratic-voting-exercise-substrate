@@ -23,7 +23,7 @@ pub mod pallet {
 	};
 	use frame_system::{pallet_prelude::*, RawOrigin};
 
-	// From pallet_identity we use functions has_identity() and set_identity()
+	// From pallet_identity we use functions like has_identity() and set_identity()
 	use pallet_identity::IdentityField;
 	const IDENTITY_FIELD_DISPLAY: u64 = IdentityField::Display as u64;
 
@@ -32,7 +32,6 @@ pub mod pallet {
 	type BalanceOf<T> =
 		<<T as Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
 
-	/// Configure the pallet by specifying the parameters and types on which it depends.
 	/// Uses tight coupling of pallet_identity and pallet_referenda
 	#[pallet::config]
 	pub trait Config:
@@ -40,12 +39,19 @@ pub mod pallet {
 	{
 		/// Because this pallet emits events, it depends on the runtime's definition of an event.
 		type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
+		/// We represent votes by reserving currency
 		type Currency: ReservableCurrency<Self::AccountId>;
 	}
 
 	#[pallet::pallet]
+	#[pallet::without_storage_info]
 	#[pallet::generate_store(pub(super) trait Store)]
 	pub struct Pallet<T>(_);
+
+	#[pallet::storage]
+	#[pallet::getter(fn public_props)]
+	pub type Depositors<T: Config> =
+		StorageMap<_, Blake2_128Concat, u32, Vec<(T::AccountId, BalanceOf<T>)>, OptionQuery>;
 
 	// Pallets use events to inform users when important changes are made.
 	// https://docs.substrate.io/v3/runtime/events-and-errors
@@ -74,6 +80,10 @@ pub mod pallet {
 		NoIdentity,
 		/// The proposal already exists
 		DuplicateProposal,
+		/// The proposal has no valid track
+		NoTrack,
+		/// The user is considered to already have voted
+		AlreadyVoted,
 	}
 
 	// Dispatchable functions allows users to interact with the pallet and invoke state changes.
@@ -81,8 +91,109 @@ pub mod pallet {
 	// Dispatchable functions must be annotated with a weight and must return a DispatchResult.
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
-		/// Reserves an amount of token for a user.
+		/// Initiate a referendum, which means putting the proposal on-chain and reserving
+		/// the initiator's deposit
+		///
+		/// - `origin`: must be `Signed` and the account must have funds available for the
+		///   referendum's track's Decision Deposit.
+		/// - `proposal`: A simple hash for now.
+		///
+		/// This function emits an event Submitted that contains the
+		///  1. index,
+		///  2. the track,
+		///  3. and the hash
+		/// of the referendum.
+		/// We therefore make the assumption in the rest of the code that a mapping
+		///
+		/// f(proposal) -> index,
+		///
+		/// exists off-chain, and all other functions later in the referendum flow
+		/// uses the index to refer to the referendum concering the proposal
+		///
+		/// Emits `pallet_referenda::Event::Submitted`.
 		#[pallet::weight(10_000 + T::DbWeight::get().writes(1))]
+		pub fn initiate_referendum(origin: OriginFor<T>, proposal: T::Hash) -> DispatchResult {
+			const REFERENDUM_BLOCKS_TOTAL: u32 = 892800; // =  2*31*24*60*60/6 = "Two months" / "block time"
+			let now = <frame_system::Pallet<T>>::block_number();
+
+			let res = <pallet_referenda::Pallet<T>>::submit(
+				origin,
+				Box::new(RawOrigin::Root.into()),
+				proposal,
+				DispatchTime::At(now + REFERENDUM_BLOCKS_TOTAL.into()),
+			);
+
+			// This is really fragile in case pallet-referenda changes its indexing scheme
+			// The promlem is pallet-referenda keeps the members of the ReferendumStatus
+			// struct private. Some workaround for that must be found
+			//let who = ensure_signed(origin)?;
+			//let index = ReferendumCount::<Test>::get() - 1;
+			//let backer_element = (who, 0);
+			//<Depositors<T>>::append(index, backer_element);
+			res
+		}
+
+		/// Post part of the Decision Deposit for a referendum.
+		///
+		/// - `origin`: must be `Signed` and the account must have funds equal to or larger than
+		///   number_of_votes^2
+		/// - `number_of_votes`: The origin wants to cast this number of quadratically priced votes
+		/// - `index`: The index of the submitted referendum whose Decision Deposit is yet to be
+		///   posted.
+		///
+		/// This splitting of the deposits across several origins, and the quadratic pricing,
+		/// are not implemented inside pallet-referenda.
+		/// Therefore we implement this book-keeping ourselves, but we want to behave
+		/// as similar as Referenda::place_decision_deposit() as we can.
+		#[pallet::weight(10_000 + T::DbWeight::get().writes(1))]
+		pub fn cast_launch_votes(
+			origin: OriginFor<T>,
+			number_of_votes: BalanceOf<T>,
+			index: ReferendumIndex,
+		) -> DispatchResultWithPostInfo {
+			let who = ensure_signed(origin.clone())?;
+			let _status = <pallet_referenda::Pallet<T>>::ensure_ongoing(index)?;
+
+			let disallowed_voters: Vec<T::AccountId> = <Depositors<T>>::get(index)
+				.unwrap_or_default()
+				.iter()
+				.map(|x| x.0.clone())
+				.collect();
+
+			let disallowed = disallowed_voters.iter().any(|x| *x == who);
+			if disallowed {
+				return Err(Error::<T>::AlreadyVoted.into())
+			}
+
+			Self::reserve_an_amount_of_token(origin.clone(), number_of_votes * number_of_votes)?;
+
+			Self::deposit_event(Event::LaunchVotesCast { number_of_votes, index });
+
+			// Register the deposit
+			let backer_element = (who, number_of_votes);
+			<Depositors<T>>::append(index, backer_element);
+			let depositors_vec_after = <Depositors<T>>::get(index).unwrap_or_default();
+
+			let votes_cast =
+				depositors_vec_after.iter().fold(0u32.into(), |acc: BalanceOf<T>, x| acc + x.1);
+
+			// TODO: Get track.decision_deposit out of referendum pallet
+			// Or make it a shared constant between pallet-qv and pallet-referendum
+			// We should absolutely not repeat the number 1000 as a hard coded constant in the code
+			//if votes_cast >= 1000u32.into() {
+			//	return <pallet_referenda::Pallet<T>>::place_decision_deposit(
+			//		origin, /* TODO: We need a special origin that represents everyone, to
+			// 		         * "split the bill" for us */
+			//		index,
+			//	)
+			//}
+			Ok(().into())
+		}
+	}
+
+	/// Helper functions
+	impl<T: Config> Pallet<T> {
+		/// Reserves an amount of token for a user.
 		pub fn reserve_an_amount_of_token(
 			origin: OriginFor<T>,
 			amount: BalanceOf<T>,
@@ -101,7 +212,6 @@ pub mod pallet {
 		}
 
 		/// Unreserves an amount of token for a user.
-		#[pallet::weight(10_000 + T::DbWeight::get().writes(1))]
 		pub fn unreserve_an_amount_of_token(
 			origin: OriginFor<T>,
 			amount: BalanceOf<T>,
@@ -115,42 +225,5 @@ pub mod pallet {
 				Err(Error::<T>::NoIdentity.into())
 			}
 		}
-
-		#[pallet::weight(10_000 + T::DbWeight::get().writes(1))]
-		pub fn initiate_referendum(origin: OriginFor<T>, proposal: T::Hash) -> DispatchResult {
-			const REFERENDUM_BLOCKS_TOTAL: u32 = 892800; // 2*31*24*60*60/6 = "Two months" / "block time"
-			let now = <frame_system::Pallet<T>>::block_number();
-			<pallet_referenda::Pallet<T>>::submit(
-				origin,
-				Box::new(RawOrigin::Root.into()),
-				proposal,
-				DispatchTime::At(now + REFERENDUM_BLOCKS_TOTAL.into()),
-			)
-		}
-
-		/// Casts vote on behalf of identified user
-		#[pallet::weight(10_000 + T::DbWeight::get().writes(1))]
-		pub fn cast_launch_votes(
-			origin: OriginFor<T>,
-			number_of_votes: BalanceOf<T>,
-			index: ReferendumIndex,
-		) -> DispatchResultWithPostInfo {
-			// TODO: if the referendum exists.. {
-			Self::reserve_an_amount_of_token(origin.clone(), number_of_votes * number_of_votes)?;
-			Self::deposit_event(Event::LaunchVotesCast { number_of_votes, index });
-
-			// TODO: If enough launch votes have been cast:
-			if false {
-				return <pallet_referenda::Pallet<T>>::place_decision_deposit(
-					origin, /* TODO: We need a special origin that represents everyone, to
-					         * "split the bill" for us */
-					index,
-				)
-			}
-			Ok(().into())
-			//}
-		}
-
-		//pub fn check_proposal_exists() -> Option<T::Hash> {}
 	}
 }

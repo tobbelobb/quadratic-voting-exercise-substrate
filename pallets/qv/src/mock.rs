@@ -273,7 +273,16 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
 	// Give different origins some start-mints
 	// the set_identity function costs 10 tokens...
 	pallet_balances::GenesisConfig::<Test> {
-		balances: vec![(1, 10), (2, 10), (3, 10), (10, 100), (20, 110), (30, 1010)],
+		balances: vec![
+			(1, 10),
+			(2, 10),
+			(3, 10),
+			(10, 100),
+			(20, 110),
+			(30, 1010),
+			(31, 250_010), // 31 and 32 have many tokens just to allow shorter tests
+			(32, 250_010),
+		],
 	}
 	.assimilate_storage(&mut t)
 	.unwrap();
