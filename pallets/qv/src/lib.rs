@@ -118,19 +118,22 @@ pub mod pallet {
 			let now = <frame_system::Pallet<T>>::block_number();
 
 			let res = <pallet_referenda::Pallet<T>>::submit(
-				origin,
+				origin.clone(),
 				Box::new(RawOrigin::Root.into()),
 				proposal,
 				DispatchTime::At(now + REFERENDUM_BLOCKS_TOTAL.into()),
 			);
 
-			// This is really fragile in case pallet-referenda changes its indexing scheme
-			// The promlem is pallet-referenda keeps the members of the ReferendumStatus
-			// struct private. Some workaround for that must be found
-			//let who = ensure_signed(origin)?;
-			//let index = ReferendumCount::<Test>::get() - 1;
-			//let backer_element = (who, 0);
-			//<Depositors<T>>::append(index, backer_element);
+			if res == Ok(()) {
+				// Getting index like this is really fragile in case pallet-referenda changes its
+				// indexing scheme The problem is pallet-referenda keeps the members of the
+				// ReferendumStatus struct private. Some workaround for that must be found
+				let index: ReferendumIndex =
+					pallet_referenda::pallet::ReferendumCount::<T>::get() - 1;
+				let who = ensure_signed(origin)?;
+				let backer_element: (T::AccountId, BalanceOf<T>) = (who, 0u32.into());
+				<Depositors<T>>::append(index, backer_element);
+			}
 			res
 		}
 
@@ -151,9 +154,9 @@ pub mod pallet {
 			origin: OriginFor<T>,
 			number_of_votes: BalanceOf<T>,
 			index: ReferendumIndex,
-		) -> DispatchResultWithPostInfo {
+		) -> DispatchResult {
 			let who = ensure_signed(origin.clone())?;
-			<pallet_referenda::Pallet<T>>::ensure_ongoing(index)?;
+			let _status = <pallet_referenda::Pallet<T>>::ensure_ongoing(index)?;
 
 			let disallowed_voters: Vec<T::AccountId> = <Depositors<T>>::get(index)
 				.unwrap_or_default()
@@ -181,7 +184,7 @@ pub mod pallet {
 			if votes_cast >= (T::LaunchDeposit::get() as u32).into() {
 				todo!();
 			}
-			Ok(().into())
+			Ok(())
 		}
 	}
 
