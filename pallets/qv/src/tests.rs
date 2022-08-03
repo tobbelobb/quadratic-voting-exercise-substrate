@@ -267,6 +267,7 @@ fn cast_launch_votes_twice() {
 #[test]
 fn cast_launch_votes_until_full_deposit_triggered() {
 	new_test_ext().execute_with(|| {
+		System::set_block_number(1);
 		let referendum_initiator = Origin::signed(30);
 		assert_ok!(Identity::set_identity(referendum_initiator.clone(), Box::new(info())));
 		let proposal_hash = BlakeTwo256::hash_of(&1);
@@ -284,5 +285,8 @@ fn cast_launch_votes_until_full_deposit_triggered() {
 		assert_eq!(Balances::free_balance(32), 250_000);
 		assert_ok!(Qv::cast_launch_votes(launch_voter_1, 500, 0)); // Cast 500 votes
 		assert_eq!(Balances::free_balance(32), 0);
+		System::assert_has_event(Event::Referenda(
+			pallet_referenda::Event::DecisionDepositPlaced { index: 0, who: 32, amount: 250_000 },
+		));
 	});
 }

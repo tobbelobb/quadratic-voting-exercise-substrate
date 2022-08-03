@@ -27,7 +27,7 @@ pub mod pallet {
 	use pallet_identity::IdentityField;
 	const IDENTITY_FIELD_DISPLAY: u64 = IdentityField::Display as u64;
 
-	use pallet_referenda::{ReferendumIndex, ReferendumInfoFor};
+	use pallet_referenda::ReferendumIndex;
 
 	type BalanceOf<T> =
 		<<T as Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
@@ -153,56 +153,57 @@ pub mod pallet {
 		#[pallet::weight(10_000 + T::DbWeight::get().writes(1))]
 		pub fn cast_launch_votes(
 			origin: OriginFor<T>,
-			number_of_votes: BalanceOf<T>,
+			number_of_votes: u32,
 			index: ReferendumIndex,
 		) -> DispatchResult {
-			if number_of_votes == 0u32.into() {
+			if number_of_votes == 0u32 {
 				// This zero-check could probably have been done with a trait
 				return Err(Error::<T>::ZeroVote.into())
 			}
 
 			let who = ensure_signed(origin.clone())?;
-			let mut status = <pallet_referenda::Pallet<T>>::ensure_ongoing(index)?;
+			<pallet_referenda::Pallet<T>>::ensure_ongoing(index)?;
 
-			let disallowed_voters: Vec<T::AccountId> = <Depositors<T>>::get(index)
-				.unwrap_or_default()
-				.iter()
-				.map(|x| x.0.clone())
-				.collect();
+			let depositors_vec = <Depositors<T>>::get(index).unwrap_or_default();
+			let disallowed_voters: Vec<T::AccountId> =
+				depositors_vec.iter().map(|x| x.0.clone()).collect();
 
 			let disallowed = disallowed_voters.iter().any(|x| *x == who);
 			if disallowed {
 				return Err(Error::<T>::AlreadyVoted.into())
 			}
 
-			Self::reserve_an_amount_of_token(origin.clone(), number_of_votes * number_of_votes)?;
-			Self::deposit_event(Event::LaunchVotesCast { number_of_votes, index });
-
-			// Register the deposit
-			let backer_element = (who.clone(), number_of_votes);
-			<Depositors<T>>::append(index, backer_element);
-			let depositors_vec_after = <Depositors<T>>::get(index).unwrap_or_default();
-
-			let votes_cast =
-				depositors_vec_after.iter().fold(0u32.into(), |acc: BalanceOf<T>, x| acc + x.1);
+			let number_of_votes_already =
+				depositors_vec.iter().fold(0u32.into(), |acc: BalanceOf<T>, x| acc + x.1);
 
 			// Is the aggregated deposit large enough yet?
-			if votes_cast >= (T::LaunchDeposit::get() as u32).into() {
-				status.decision_deposit = Some(pallet_referenda::Deposit {
-					who, // TODO. This is just the wrong AccountId.
-					// Would prefer to change pallet_referenda's
-					// ReferendumStatus.decision_deposit type Vec<Deposit>
-					// instead of just Deposit
-					amount: (T::LaunchDeposit::get() as u32).into(),
+			if number_of_votes_already + number_of_votes.into() >=
+				(T::LaunchDeposit::get() as u32).into()
+			{
+				// Last depositor should get refunded through pallet_referenda
+				let backer_element: (<T as frame_system::Config>::AccountId, BalanceOf<T>) =
+					(who.clone(), 0u32.into());
+				<Depositors<T>>::append(index, backer_element);
+				<pallet_referenda::Pallet<T>>::place_triggering_decision_deposit(
+					origin.clone(),
+					index,
+					(number_of_votes * number_of_votes).into(),
+				)
+			} else {
+				// Register the deposit
+				Self::reserve_an_amount_of_token(
+					origin.clone(),
+					(number_of_votes * number_of_votes).into(),
+				)?;
+				let backer_element: (<T as frame_system::Config>::AccountId, BalanceOf<T>) =
+					(who.clone(), number_of_votes.into());
+				<Depositors<T>>::append(index, backer_element);
+				Self::deposit_event(Event::LaunchVotesCast {
+					number_of_votes: number_of_votes.into(),
+					index,
 				});
-
-				let now = frame_system::Pallet::<T>::block_number();
-				let (info, _, _) =
-					<pallet_referenda::Pallet<T>>::service_referendum(now, index, status);
-				ReferendumInfoFor::<T>::insert(index, info);
-				Self::deposit_event(Event::LaunchPhaseSuccess { index });
+				Ok(())
 			}
-			Ok(())
 		}
 	}
 

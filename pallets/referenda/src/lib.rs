@@ -418,6 +418,23 @@ pub mod pallet {
 			Ok(branch.weight_of_deposit::<T, I>().into())
 		}
 
+		#[pallet::weight(10_000)]
+		pub fn place_triggering_decision_deposit(
+			origin: OriginFor<T>,
+			index: ReferendumIndex,
+			amount: BalanceOf<T, I>,
+		) -> DispatchResult {
+			let who = ensure_signed(origin)?;
+			let mut status = Self::ensure_ongoing(index)?;
+			ensure!(status.decision_deposit.is_none(), Error::<T, I>::HasDeposit);
+			status.decision_deposit = Some(Self::take_deposit(who.clone(), amount)?);
+			let now = frame_system::Pallet::<T>::block_number();
+			let (info, _, _) = Self::service_referendum(now, index, status);
+			ReferendumInfoFor::<T, I>::insert(index, info);
+			Self::deposit_event(Event::DecisionDepositPlaced { index, who, amount });
+			Ok(())
+		}
+
 		/// Refund the Decision Deposit for a closed referendum back to the depositor.
 		///
 		/// - `origin`: must be `Signed` or `Root`.

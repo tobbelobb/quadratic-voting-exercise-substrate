@@ -231,7 +231,7 @@ impl pallet_referenda::Config for Test {
 	type Call = Call;
 	type Event = Event;
 	type Scheduler = Scheduler;
-	type Currency = pallet_balances::Pallet<Self>;
+	type Currency = Balances;
 	type SubmitOrigin = frame_system::EnsureSigned<u64>;
 	type CancelOrigin = EnsureSignedBy<Four, u64>;
 	type KillOrigin = EnsureRoot<u64>;
