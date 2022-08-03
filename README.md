@@ -3,10 +3,10 @@ A learning project to get me into Substrate development. A simple quadratic voti
 
 ## User Stories & Development Status
 
- - [ ] Use FRAME Identity pallet
- - [ ] Users (IDs) can vote by reserving tokens
- - [ ] Votes = sqrt(reserved tokens)
- - [ ] Proposals: on-chain hashes
+ - [x] Use FRAME Identity pallet
+ - [x] Users (IDs) can vote by reserving tokens
+ - [x] Votes = sqrt(reserved tokens)
+ - [x] Proposals: on-chain hashes
  - [ ] Simple case voting alternatives: Aye or Nay
  - [ ] Bonus: Proposing and voting on multiple things at once
 
@@ -16,10 +16,34 @@ A learning project to get me into Substrate development. A simple quadratic voti
  - [x] Reserve tokens function exists
    - [x] Test it
  - [x] Weigh reserved tokens on quadratic scale
- - [ ] Represent referendums
+ - [x] Represent referendums
 
-## Backlog
- - [ ] In release builds, the events should not expose voters' AccountIds. Make it hard to prove to someone voted in a particular way.
+
+## Want to Highlight
+
+### The idea below
+It describes a voting system that is hard to game.
+It gets around the problem of who creates the referendums by splitting them into two phases.
+
+The code uses tight coupling  with Frame's identity pallet.
+
+The two-phase quadratic voting is implemented by piggy-backing on Frame's referendum pallet, which
+uses three phases. I have implemented the "Votion launch phase" by adding some quadratic voting logic
+to the referendum pallet's preparation phase.
+
+Because of time constraints, only the launch phase was implemented.
+The voting phase was not implemented, but all the referendum pallet functions for it,
+and the full state machine in there, are already available.
+
+For the code itself, I want to highlight the functions `initiate_referendum()` and `cast_launch_votes()`.
+
+I spent a lot of time making `cast_launch_votes()` robust and well tested, as well as making the quadratic voting.
+
+Look into `pallets/qv/tests.rs`, and run the tests:
+
+```
+cargo test -p pallet-qv
+```
 
 ## Parachain Idea: Votion
 On Votion we have a system for identifying users.
