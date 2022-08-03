@@ -208,6 +208,22 @@ fn cast_single_launch_vote() {
 }
 
 #[test]
+fn cast_zero_votes() {
+	new_test_ext().execute_with(|| {
+		let referendum_initiator = Origin::signed(30);
+		assert_ok!(Identity::set_identity(referendum_initiator.clone(), Box::new(info())));
+		let proposal_hash = BlakeTwo256::hash_of(&1);
+		assert_ok!(Qv::initiate_referendum(referendum_initiator, proposal_hash));
+
+		let launch_voter = Origin::signed(20);
+		assert_ok!(Identity::set_identity(launch_voter.clone(), Box::new(info())));
+		assert_eq!(Balances::free_balance(20), 100);
+		assert_noop!(Qv::cast_launch_votes(launch_voter, 0, 0), Error::<Test>::ZeroVote);
+		assert_eq!(Balances::free_balance(20), 100);
+	});
+}
+
+#[test]
 fn cast_more_launch_votes_than_allowed() {
 	new_test_ext().execute_with(|| {
 		let referendum_initiator = Origin::signed(30);
@@ -221,7 +237,7 @@ fn cast_more_launch_votes_than_allowed() {
 		assert_noop!(
 			Qv::cast_launch_votes(launch_voter, 11, 0),
 			BalancesError::<Test>::InsufficientBalance
-		); // 11*11 > 100
+		); // 11*11 == 121 and 121 > 100
 		assert_eq!(Balances::free_balance(20), 100);
 	});
 }
@@ -261,6 +277,21 @@ fn cast_launch_votes_twice() {
 
 		assert_ok!(Qv::cast_launch_votes(launch_voter.clone(), 5, 0));
 		assert_noop!(Qv::cast_launch_votes(launch_voter, 1, 0), Error::<Test>::AlreadyVoted);
+	});
+}
+
+#[test]
+fn initiator_tries_to_cast_launch_votes() {
+	new_test_ext().execute_with(|| {
+		let referendum_initiator = Origin::signed(30);
+		assert_ok!(Identity::set_identity(referendum_initiator.clone(), Box::new(info())));
+		let proposal_hash = BlakeTwo256::hash_of(&1);
+		assert_ok!(Qv::initiate_referendum(referendum_initiator.clone(), proposal_hash));
+
+		assert_noop!(
+			Qv::cast_launch_votes(referendum_initiator, 1, 0),
+			Error::<Test>::AlreadyVoted
+		);
 	});
 }
 

@@ -181,6 +181,7 @@ pub mod pallet {
 				(T::LaunchDeposit::get() as u32).into()
 			{
 				// Last depositor should get refunded through pallet_referenda
+				// So record their vote as zero here
 				let backer_element: (<T as frame_system::Config>::AccountId, BalanceOf<T>) =
 					(who.clone(), 0u32.into());
 				<Depositors<T>>::append(index, backer_element);
