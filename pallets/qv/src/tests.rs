@@ -11,10 +11,6 @@ use sp_runtime::{
 
 use crate::Event as QvEvent;
 
-/// TODO: there's something called something like
-/// frame_system::pallet::<T>::assert_has_event!()
-/// and assert_last_event!() that we should maybe use instead
-/// of rolling our own here.
 fn last_event() -> QvEvent<Test> {
 	System::events()
 		.into_iter()
@@ -296,7 +292,7 @@ fn initiator_tries_to_cast_launch_votes() {
 }
 
 #[test]
-fn cast_launch_votes_until_full_deposit_triggered() {
+fn cast_launch_votes_until_full_deposit_triggered_and_beyond() {
 	new_test_ext().execute_with(|| {
 		System::set_block_number(1);
 		let referendum_initiator = Origin::signed(30);
@@ -319,5 +315,13 @@ fn cast_launch_votes_until_full_deposit_triggered() {
 		System::assert_has_event(Event::Referenda(
 			pallet_referenda::Event::DecisionDepositPlaced { index: 0, who: 32, amount: 250_000 },
 		));
+
+		let launch_voter_2 = Origin::signed(20);
+		assert_ok!(Identity::set_identity(launch_voter_2.clone(), Box::new(info())));
+
+		assert_noop!(
+			Qv::cast_launch_votes(launch_voter_2, 1, 0),
+			ReferendaError::<Test>::HasDeposit,
+		);
 	});
 }

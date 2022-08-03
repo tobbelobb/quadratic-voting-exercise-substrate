@@ -181,15 +181,17 @@ pub mod pallet {
 				(T::LaunchDeposit::get() as u32).into()
 			{
 				// Last depositor should get refunded through pallet_referenda
-				// So record their vote as zero here
-				let backer_element: (<T as frame_system::Config>::AccountId, BalanceOf<T>) =
-					(who.clone(), 0u32.into());
-				<Depositors<T>>::append(index, backer_element);
+				// This must simply be remembered later, when writing
+				// the refund_launch_deposit function
 				<pallet_referenda::Pallet<T>>::place_triggering_decision_deposit(
 					origin.clone(),
 					index,
 					(number_of_votes * number_of_votes).into(),
-				)
+				)?;
+				let backer_element: (<T as frame_system::Config>::AccountId, BalanceOf<T>) =
+					(who.clone(), number_of_votes.into());
+				<Depositors<T>>::append(index, backer_element);
+				Ok(())
 			} else {
 				// Register the deposit
 				Self::reserve_an_amount_of_token(
