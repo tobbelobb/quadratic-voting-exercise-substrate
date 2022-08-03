@@ -1,5 +1,5 @@
 use crate::{mock::*, Error};
-use frame_support::{assert_noop, assert_ok, BoundedVec};
+use frame_support::{assert_err, assert_noop, assert_ok, dispatch::RawOrigin, BoundedVec};
 
 use pallet_balances::Error as BalancesError;
 use pallet_identity::{Data, IdentityInfo};
@@ -130,7 +130,7 @@ fn unreserve_then_reserve_again() {
 			BalancesError::<Test>::InsufficientBalance
 		);
 		const UNRESERVE_AMOUNT: u64 = 11;
-		assert_ok!(Qv::unreserve_an_amount_of_token(who.clone(), UNRESERVE_AMOUNT));
+		assert_ok!(Qv::unreserve_an_amount_of_token(RawOrigin::Root.into(), 10, UNRESERVE_AMOUNT));
 
 		// Checks that the correct event was emitted
 		assert_eq!(last_event(), QvEvent::AmountUnreserved(UNRESERVE_AMOUNT));
@@ -323,5 +323,42 @@ fn cast_launch_votes_until_full_deposit_triggered_and_beyond() {
 			Qv::cast_launch_votes(launch_voter_2, 1, 0),
 			ReferendaError::<Test>::HasDeposit,
 		);
+	});
+}
+
+#[test]
+fn launch_phase_can_get_cancelled_by_root_leads_to_slash() {
+	new_test_ext().execute_with(|| {
+		// Events are not populated in the genesis block
+		System::set_block_number(1);
+		let initiator_num = 30;
+		let referendum_initiator = Origin::signed(initiator_num);
+		assert_ok!(Identity::set_identity(referendum_initiator.clone(), Box::new(info())));
+		let proposal_hash = BlakeTwo256::hash_of(&1);
+		assert_ok!(Qv::initiate_referendum(referendum_initiator, proposal_hash));
+
+		let voter_num = 20;
+		let launch_voter = Origin::signed(voter_num);
+		assert_ok!(Identity::set_identity(launch_voter.clone(), Box::new(info())));
+		assert_ok!(Qv::cast_launch_votes(launch_voter, 10, 0));
+
+		// Both actors have zero balances
+		assert_eq!(Balances::free_balance(initiator_num), 0);
+		assert_eq!(Balances::free_balance(voter_num), 0);
+
+		assert_noop!(
+			Qv::refund_launch_votes(RawOrigin::Root.into(), 0),
+			Error::<Test>::StillOngoing
+		);
+
+		assert_ok!(Referenda::cancel(RawOrigin::Root.into(), 0));
+
+		assert_err!(
+			Qv::refund_launch_votes(RawOrigin::Root.into(), 0),
+			ReferendaError::<Test>::NoDeposit
+		);
+
+		assert_eq!(Balances::free_balance(initiator_num), 0);
+		assert_eq!(Balances::free_balance(voter_num), 0);
 	});
 }

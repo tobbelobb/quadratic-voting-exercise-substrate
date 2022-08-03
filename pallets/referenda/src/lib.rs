@@ -473,11 +473,12 @@ pub mod pallet {
 		/// Emits `Cancelled`.
 		#[pallet::weight(T::WeightInfo::cancel())]
 		pub fn cancel(origin: OriginFor<T>, index: ReferendumIndex) -> DispatchResult {
-			T::CancelOrigin::ensure_origin(origin)?;
+			T::CancelOrigin::ensure_origin(origin.clone())?;
 			let status = Self::ensure_ongoing(index)?;
 			if let Some((_, last_alarm)) = status.alarm {
 				let _ = T::Scheduler::cancel(last_alarm);
 			}
+
 			Self::note_one_fewer_deciding(status.track);
 			Self::deposit_event(Event::<T, I>::Cancelled { index, tally: status.tally });
 			let info = ReferendumInfo::Cancelled(
@@ -684,6 +685,13 @@ impl<T: Config<I>, I: 'static> Pallet<T, I> {
 		match ReferendumInfoFor::<T, I>::get(index) {
 			Some(ReferendumInfo::Ongoing(status)) => Ok(status),
 			_ => Err(Error::<T, I>::NotOngoing.into()),
+		}
+	}
+
+	pub fn is_ongoing(index: ReferendumIndex) -> bool {
+		match ReferendumInfoFor::<T, I>::get(index) {
+			Some(ReferendumInfo::Ongoing(_)) => true,
+			_ => false,
 		}
 	}
 

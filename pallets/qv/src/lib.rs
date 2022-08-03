@@ -86,6 +86,8 @@ pub mod pallet {
 		NoTrack,
 		/// The user is considered to already have voted
 		AlreadyVoted,
+		/// The referendum is still ongoing
+		StillOngoing,
 	}
 
 	// Dispatchable functions allows users to interact with the pallet and invoke state changes.
@@ -111,6 +113,9 @@ pub mod pallet {
 		///
 		/// exists off-chain, and all other functions later in the referendum flow
 		/// uses the index to refer to the referendum concering the proposal
+		///
+		/// Reserving the submission deposit is handled entirely inside pallet_referenda.
+		/// Refunding it should also be handled inside pallet_referenda.
 		///
 		/// Emits `pallet_referenda::Event::Submitted`.
 		#[pallet::weight(10_000 + T::DbWeight::get().writes(1))]
@@ -138,7 +143,7 @@ pub mod pallet {
 			res
 		}
 
-		/// Post part of the Decision Deposit for a referendum.
+		/// Cast launch votes for a referendum that is in the launch phase.
 		///
 		/// - `origin`: must be `Signed` and the account must have funds equal to or larger than
 		///   number_of_votes^2
@@ -148,8 +153,10 @@ pub mod pallet {
 		///
 		/// This splitting of the deposits across several origins, and the quadratic pricing,
 		/// are not implemented inside pallet-referenda.
-		/// Therefore we implement this book-keeping ourselves, but we want to behave
-		/// as similar as Referenda::place_decision_deposit() as we can.
+		/// Therefore we implement this book-keeping ourselves.s
+		/// We build on top of
+		/// Referenda::place_decision_deposit()
+		/// and want to stay as close to its behaviour as we can.
 		#[pallet::weight(10_000 + T::DbWeight::get().writes(1))]
 		pub fn cast_launch_votes(
 			origin: OriginFor<T>,
@@ -233,9 +240,10 @@ pub mod pallet {
 		/// Unreserves an amount of token for a user.
 		pub fn unreserve_an_amount_of_token(
 			origin: OriginFor<T>,
+			who: T::AccountId,
 			amount: BalanceOf<T>,
 		) -> DispatchResult {
-			let who = ensure_signed(origin)?;
+			ensure_root(origin)?;
 			if pallet_identity::Pallet::<T>::has_identity(&who, IDENTITY_FIELD_DISPLAY) {
 				<T as Config>::Currency::unreserve(&who, amount);
 				Self::deposit_event(Event::AmountUnreserved(amount));
@@ -243,6 +251,43 @@ pub mod pallet {
 			} else {
 				Err(Error::<T>::NoIdentity.into())
 			}
+		}
+
+		/// Refund all Decision Deposits (launch votes) for a referendum.
+		///
+		/// - `origin`: must be `Root`
+		/// - `index`: The index of the submitted referendum whose Decision Deposit is yet to be
+		///   posted.
+		///
+		/// This function should be triggered by the state machine inside pallet_referendum
+		/// (the service_referendum() function).
+		///
+		/// The splitting of the deposits across several origins, and the quadratic pricing,
+		/// are not implemented inside pallet-referenda.
+		/// Therefore we implement this book-keeping ourselves inside pallet-qv.
+		/// We build on top of
+		/// Referenda::refund_decision_deposit()
+		/// and want to stay as close to its behaviour as we can.
+		pub fn refund_launch_votes(origin: OriginFor<T>, index: ReferendumIndex) -> DispatchResult {
+			ensure_root(origin.clone())?;
+			if <pallet_referenda::Pallet<T>>::is_ongoing(index) {
+				return Err(Error::<T>::StillOngoing.into())
+			}
+
+			let mut depositors_vec = <Depositors<T>>::get(index).unwrap_or_default();
+			if !depositors_vec.is_empty() {
+				depositors_vec.pop(); // Last voter is refunded by pallet_referenda
+				depositors_vec
+					.iter()
+					.next() // first backer is the initiator, which is handled by pallet_referenda
+					.map(|(id, amount)| {
+						Self::unreserve_an_amount_of_token(origin.clone(), (*id).clone(), *amount)
+					});
+
+				<pallet_referenda::Pallet<T>>::refund_decision_deposit(origin.clone(), index)?;
+			}
+
+			Ok(())
 		}
 	}
 }
