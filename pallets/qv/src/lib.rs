@@ -76,10 +76,8 @@ pub mod pallet {
 	// Errors inform users that something went wrong.
 	#[pallet::error]
 	pub enum Error<T> {
-		/// Error names should be descriptive.
-		NoneValue,
-		/// Errors should have helpful documentation associated with them.
-		StorageOverflow,
+		/// Can not cast zero votes
+		ZeroVote,
 		/// User has not set an identity
 		NoIdentity,
 		/// The proposal already exists
@@ -158,6 +156,11 @@ pub mod pallet {
 			number_of_votes: BalanceOf<T>,
 			index: ReferendumIndex,
 		) -> DispatchResult {
+			if number_of_votes == 0u32.into() {
+				// This zero-check could probably have been done with a trait
+				return Err(Error::<T>::ZeroVote.into())
+			}
+
 			let who = ensure_signed(origin.clone())?;
 			let mut status = <pallet_referenda::Pallet<T>>::ensure_ongoing(index)?;
 
